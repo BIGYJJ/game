@@ -1,0 +1,3 @@
+D:/game/build/CMakeFiles/PixelFarmRPG.dir
+D:/game/build/CMakeFiles/edit_cache.dir
+D:/game/build/CMakeFiles/rebuild_cache.dir

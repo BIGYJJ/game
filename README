@@ -1,0 +1,59 @@
+game/
+├── CMakeLists.txt
+├── assets/                    # 资源文件
+│   ├── textures/             # 纹理/精灵图
+│   │   ├── characters/
+│   │   ├── tiles/
+│   │   ├── items/
+│   │   └── ui/
+│   ├── fonts/
+│   ├── sounds/
+│   ├── music/
+│   └── data/                 # 游戏数据（JSON/XML）
+│       ├── maps/
+│       ├── items.json
+│       ├── crops.json
+│       └── npcs.json
+├── src/
+│   ├── main.cpp
+│   ├── Core/                 # 核心系统
+│   │   ├── Game.h/cpp        # 游戏主循环
+│   │   ├── StateManager.h/cpp # 状态管理器
+│   │   ├── ResourceManager.h/cpp # 资源管理
+│   │   └── Config.h          # 配置常量
+│   ├── States/               # 游戏状态/场景
+│   │   ├── State.h           # 状态基类
+│   │   ├── MenuState.h/cpp
+│   │   ├── GameState.h/cpp
+│   │   └── PauseState.h/cpp
+│   ├── Entity/               # 游戏实体
+│   │   ├── Entity.h/cpp      # 实体基类
+│   │   ├── Player.h/cpp
+│   │   ├── NPC.h/cpp
+│   │   └── Animal.h/cpp
+│   ├── World/                # 世界/地图系统
+│   │   ├── TileMap.h/cpp     # 瓦片地图
+│   │   ├── Chunk.h/cpp       # 地图分块
+│   │   └── Camera.h/cpp      # 摄像机
+│   ├── Systems/              # 游戏系统
+│   │   ├── TimeSystem.h/cpp  # 时间/季节系统
+│   │   ├── InventorySystem.h/cpp
+│   │   ├── CropSystem.h/cpp  # 农作物系统
+│   │   ├── DialogueSystem.h/cpp
+│   │   └── QuestSystem.h/cpp
+│   ├── Items/                # 物品系统
+│   │   ├── Item.h/cpp
+│   │   ├── Crop.h/cpp
+│   │   ├── Tool.h/cpp
+│   │   └── ItemDatabase.h/cpp
+│   ├── UI/                   # UI系统
+│   │   ├── UIElement.h/cpp
+│   │   ├── Button.h/cpp
+│   │   ├── InventoryUI.h/cpp
+│   │   └── DialogueBox.h/cpp
+│   └── Utils/                # 工具类
+│       ├── Animation.h/cpp
+│       ├── Collision.h/cpp
+│       └── SaveLoad.h/cpp
+└── include/                  # 第三方库头文件
+    └── json.hpp              # nlohmann/json

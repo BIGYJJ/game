@@ -1,0 +1,20 @@
+[
+{
+  "directory": "D:/game/build",
+  "command": "C:\\msys64\\mingw64\\bin\\g++.exe -ID:/game/src -isystem D:/SFML-2.6.1/include -g -std=gnu++17 -Wall -Wextra -o CMakeFiles\\PixelFarmRPG.dir\\src\\main.cpp.obj -c D:\\game\\src\\main.cpp",
+  "file": "D:/game/src/main.cpp",
+  "output": "D:/game/build/CMakeFiles/PixelFarmRPG.dir/src/main.cpp.obj"
+},
+{
+  "directory": "D:/game/build",
+  "command": "C:\\msys64\\mingw64\\bin\\g++.exe -ID:/game/src -isystem D:/SFML-2.6.1/include -g -std=gnu++17 -Wall -Wextra -o CMakeFiles\\PixelFarmRPG.dir\\src\\Core\\Game.cpp.obj -c D:\\game\\src\\Core\\Game.cpp",
+  "file": "D:/game/src/Core/Game.cpp",
+  "output": "D:/game/build/CMakeFiles/PixelFarmRPG.dir/src/Core/Game.cpp.obj"
+},
+{
+  "directory": "D:/game/build",
+  "command": "C:\\msys64\\mingw64\\bin\\g++.exe -ID:/game/src -isystem D:/SFML-2.6.1/include -g -std=gnu++17 -Wall -Wextra -o CMakeFiles\\PixelFarmRPG.dir\\src\\States\\GameState.cpp.obj -c D:\\game\\src\\States\\GameState.cpp",
+  "file": "D:/game/src/States/GameState.cpp",
+  "output": "D:/game/build/CMakeFiles/PixelFarmRPG.dir/src/States/GameState.cpp.obj"
+}
+]

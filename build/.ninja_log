@@ -1,0 +1,7 @@
+# ninja log v7
+2	357	7866668316045965	CMakeFiles/game.dir/src/main.cpp.obj	672095115c9be26b
+360	519	7866668319636068	game.exe	39f7fba55280c023
+4	487	7867313457905537	CMakeFiles/PixelFarmRPG.dir/src/main.cpp.obj	f324ac66dfa10df
+5	625	7867153653837298	CMakeFiles/PixelFarmRPG.dir/src/Core/Game.cpp.obj	8bf4e9aaefc5a122
+3	601	7867314607333453	CMakeFiles/PixelFarmRPG.dir/src/States/GameState.cpp.obj	ff5f864476c8717c
+601	767	7867314613316520	bin/PixelFarmRPG.exe	9ce095af422ec172
