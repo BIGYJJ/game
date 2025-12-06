@@ -56,39 +56,34 @@ public:
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::W) || sf::Keyboard::isKeyPressed(sf::Keyboard::Up)) {
             movement.y -= speed * dt;
             isMoving = true;
-            std::cout<<"Up!"<<std::endl;
         }
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) || sf::Keyboard::isKeyPressed(sf::Keyboard::Down)) {
             movement.y += speed * dt;
             isMoving = true;
-            std::cout<<"Down!"<<std::endl;
         }
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) || sf::Keyboard::isKeyPressed(sf::Keyboard::Left)) {
             movement.x -= speed * dt;
             isMoving = true;
             facing = Direction::Left;
-            std::cout<<"Left!"<<std::endl;
         }
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) || sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) {
             movement.x += speed * dt;
             isMoving = true;
             facing = Direction::Right;
-            std::cout<<"Right!"<<std::endl;
-        }
-
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space)) {
-            std::cout<<"attack!"<<std::endl;
-            setState(AnimState::Attack);
         }
 
         // 更新位置
         sprite.move(movement);
 
-        // 更新动画状态
-        if (isMoving) {
-            setState(AnimState::Walk);
-        } else {
-            setState(AnimState::Idle);
+        // 【修复】只有不在攻击状态时才能切换状态
+        if (currentState != AnimState::Attack) {
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space)) {
+                setState(AnimState::Attack);
+            } else if (isMoving) {
+                setState(AnimState::Walk);
+            } else {
+                setState(AnimState::Idle);
+            }
         }
 
         // 更新动画帧
@@ -147,15 +142,17 @@ private:
             animTimer = 0.0f;
             currentFrame++;
 
-            // 获取当前动画的帧数组
             const std::vector<sf::IntRect>& frames = getCurrentFrames();
             
-            // 循环播放
             if (currentFrame >= frames.size()) {
+                // 【修复】攻击动画播放完后回到 Idle
+                if (currentState == AnimState::Attack) {
+                    setState(AnimState::Idle);
+                    return;
+                }
                 currentFrame = 0;
             }
 
-            // 更新精灵显示的帧
             sprite.setTextureRect(frames[currentFrame]);
             updateOrigin();
         }
