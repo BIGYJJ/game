@@ -2,7 +2,7 @@
 #include "../States/State.h"
 
 Game::Game() 
-    : window(sf::VideoMode(1280, 720), "Pixel Farm RPG")
+    : window(sf::VideoMode(2560, 1440), "Pixel Farm RPG")
     , deltaTime(0.0f)
 {
     window.setFramerateLimit(FPS);
