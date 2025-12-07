@@ -23,28 +23,22 @@ public:
         , currentState(AnimState::Idle)
         , currentFrame(0)
         , animTimer(0.0f)
-        , frameTime(0.12f)  // 每帧持续时间（秒）
+        , frameTime(0.12f)
         , facing(Direction::Right)
     {
-        // 1. 加载精灵表
+        // 加载精灵表
         if (!texture.loadFromFile("../../assets/player.png")) {
-            std::cerr << "错误：无法加载 player.jpg" << std::endl;
+            std::cerr << "错误：无法加载 player.png" << std::endl;
             texture.create(64, 64);
         }
 
         sprite.setTexture(texture);
         sprite.setPosition(x, y);
 
-        // 2. 初始化动画帧数据（基于之前的分析结果）
+        // 初始化动画帧
         initAnimationFrames();
-
-        // 3. 设置初始帧
         sprite.setTextureRect(idleFrames[0]);
-        
-        // 4. 设置缩放（可选，根据需要调整）
-        sprite.setScale(1.0f, 1.0f);
-        
-        // 5. 设置原点为底部中心，方便定位
+        sprite.setScale(0.5f, 0.5f);
         updateOrigin();
     }
     
@@ -52,7 +46,7 @@ public:
         sf::Vector2f movement(0.f, 0.f);
         bool isMoving = false;
 
-        // 键盘控制移动
+        // 键盘控制
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::W) || sf::Keyboard::isKeyPressed(sf::Keyboard::Up)) {
             movement.y -= speed * dt;
             isMoving = true;
@@ -75,7 +69,7 @@ public:
         // 更新位置
         sprite.move(movement);
 
-        // 【修复】只有不在攻击状态时才能切换状态
+        // 状态切换
         if (currentState != AnimState::Attack) {
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space)) {
                 setState(AnimState::Attack);
@@ -86,10 +80,8 @@ public:
             }
         }
 
-        // 更新动画帧
+        // 更新动画
         updateAnimation(dt);
-        
-        // 更新精灵朝向
         updateFacing();
     }
     
@@ -97,15 +89,50 @@ public:
         window.draw(sprite);
     }
     
-    sf::Vector2f getPosition() const { return sprite.getPosition(); }
+    // 获取位置
+    sf::Vector2f getPosition() const { 
+        return sprite.getPosition(); 
+    }
     
-    // 获取精灵边界（用于碰撞检测）
-    sf::FloatRect getBounds() const { return sprite.getGlobalBounds(); }
+    // 设置位置（用于碰撞修正）
+    void setPosition(float x, float y) {
+        sprite.setPosition(x, y);
+    }
+    
+    void setPosition(const sf::Vector2f& pos) {
+        sprite.setPosition(pos);
+    }
+    
+    // 获取边界（用于碰撞检测）
+    sf::FloatRect getBounds() const { 
+        return sprite.getGlobalBounds(); 
+    }
+    
+    // 获取底部中心点（更精确的碰撞点）
+    sf::Vector2f getFootPosition() const {
+        sf::FloatRect bounds = sprite.getGlobalBounds();
+        return sf::Vector2f(
+            bounds.left + bounds.width / 2.0f,
+            bounds.top + bounds.height
+        );
+    }
+    
+    // 获取碰撞盒（可以比视觉边界小一些）
+    sf::FloatRect getCollisionBox() const {
+        sf::FloatRect bounds = sprite.getGlobalBounds();
+        // 碰撞盒比实际显示小30%，更合理
+        float shrink = 0.35f;
+        return sf::FloatRect(
+            bounds.left + bounds.width * shrink / 2,
+            bounds.top + bounds.height * shrink,
+            bounds.width * (1 - shrink),
+            bounds.height * (1 - shrink)
+        );
+    }
 
 private:
-    // 初始化所有动画帧
     void initAnimationFrames() {
-        // 站立动画帧 (第1行) - 4帧
+        // 站立动画 (4帧)
         idleFrames = {
             sf::IntRect(58,  55, 105, 117),
             sf::IntRect(195, 55, 105, 117),
@@ -113,7 +140,7 @@ private:
             sf::IntRect(455, 55, 114, 117)
         };
 
-        // 行走动画帧 (第2行) - 7帧
+        // 行走动画 (7帧)
         walkFrames = {
             sf::IntRect(55,  216, 112, 118),
             sf::IntRect(196, 216, 112, 118),
@@ -124,7 +151,7 @@ private:
             sf::IntRect(866, 216, 113, 118)
         };
 
-        // 攻击动画帧 (第3行) - 5帧 (跳过最后一个不完整的)
+        // 攻击动画 (5帧)
         attackFrames = {
             sf::IntRect(54,  371, 114, 165),
             sf::IntRect(191, 371, 112, 165),
@@ -134,7 +161,6 @@ private:
         };
     }
 
-    // 更新动画
     void updateAnimation(float dt) {
         animTimer += dt;
 
@@ -145,7 +171,6 @@ private:
             const std::vector<sf::IntRect>& frames = getCurrentFrames();
             
             if (currentFrame >= frames.size()) {
-                // 【修复】攻击动画播放完后回到 Idle
                 if (currentState == AnimState::Attack) {
                     setState(AnimState::Idle);
                     return;
@@ -158,7 +183,6 @@ private:
         }
     }
 
-    // 获取当前状态对应的帧数组
     const std::vector<sf::IntRect>& getCurrentFrames() const {
         switch (currentState) {
             case AnimState::Walk:   return walkFrames;
@@ -168,32 +192,26 @@ private:
         }
     }
 
-    // 设置动画状态
     void setState(AnimState newState) {
         if (currentState != newState) {
             currentState = newState;
             currentFrame = 0;
             animTimer = 0.0f;
-            
-            // 立即更新到新状态的第一帧
             sprite.setTextureRect(getCurrentFrames()[0]);
             updateOrigin();
         }
     }
 
-    // 更新精灵朝向（通过水平翻转）
     void updateFacing() {
         sf::IntRect rect = sprite.getTextureRect();
         
         if (facing == Direction::Left) {
-            // 水平翻转：使用负宽度
             if (rect.width > 0) {
                 rect.left += rect.width;
                 rect.width = -rect.width;
                 sprite.setTextureRect(rect);
             }
         } else {
-            // 正常朝右
             if (rect.width < 0) {
                 rect.width = -rect.width;
                 rect.left -= rect.width;
@@ -202,7 +220,6 @@ private:
         }
     }
 
-    // 更新原点（保持角色脚底对齐）
     void updateOrigin() {
         sf::IntRect rect = sprite.getTextureRect();
         int w = rect.width > 0 ? rect.width : -rect.width;
@@ -210,24 +227,17 @@ private:
         sprite.setOrigin(w / 2.0f, static_cast<float>(h));
     }
 
-    // 触发攻击（可选，按空格键攻击）
-    void attack() {
-        setState(AnimState::Attack);
-    }
-
 private:
     sf::Sprite sprite;
     sf::Texture texture;
     float speed;
 
-    // 动画系统
     AnimState currentState;
     Direction facing;
     size_t currentFrame;
     float animTimer;
     float frameTime;
 
-    // 动画帧数据
     std::vector<sf::IntRect> idleFrames;
     std::vector<sf::IntRect> walkFrames;
     std::vector<sf::IntRect> attackFrames;
