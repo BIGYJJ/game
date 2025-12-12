@@ -7,46 +7,46 @@
 #include <memory>
 #include <string>
 
-// 地图类型枚举
+// Map type enumeration
 enum class MapType {
-    Farm,    // 农场地图
-    Forest   // 森林地图
+    Farm,    // Farm map
+    Forest   // Forest map
 };
 
 class GameState : public State {
 public:
-    // 构造函数 - 可以指定初始地图类型
+    // Constructor - can specify initial map type
     GameState(Game* game, MapType mapType = MapType::Farm);
     
-    // 事件处理
+    // Event handling
     void handleInput(const sf::Event& event) override;
     
-    // 更新游戏逻辑
+    // Update game logic
     void update(float dt) override;
     
-    // 渲染
+    // Render
     void render(sf::RenderWindow& window) override;
 
 private:
-    // 加载指定地图
+    // Load specified map
     void loadMap(MapType mapType);
     
-    // 切换到新地图
+    // Switch to new map
     void switchMap(MapType newMap);
     
-    // 渲染UI层
+    // Render UI layer
     void renderUI(sf::RenderWindow& window);
     
-    // 获取地图名称
+    // Get map name string
     std::string getMapName(MapType mapType) const;
 
 private:
-    // 游戏对象
+    // Game objects
     std::unique_ptr<Player> player;
     std::unique_ptr<TileMap> tileMap;
     std::unique_ptr<Camera> camera;
     std::unique_ptr<TimeSystem> timeSystem;
     
-    // 当前地图类型
+    // Current map type
     MapType currentMap;
 };

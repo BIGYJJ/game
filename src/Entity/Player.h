@@ -28,7 +28,7 @@ public:
     {
         // 加载精灵表
         if (!texture.loadFromFile("../../assets/player.png")) {
-            std::cerr << "错误：无法加载 player.png" << std::endl;
+            std::cerr << "error：无法加载 player.png" << std::endl;
             texture.create(64, 64);
         }
 
