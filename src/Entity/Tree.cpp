@@ -87,11 +87,13 @@ bool Tree::loadTextures(const std::string& basePath) {
     
     // 成熟树木贴图（必需）
     std::vector<std::string> maturePaths = {
-        path + "/mature.png",
-        path + ".png",
-        basePath + "/tree.png",
-        "../../assets/game_source/tree/tree.png"
-    };
+    path + "/mature.png",
+    path + ".png",
+    basePath + "/" + treeType + ".png",        // 新增：apple.png 或 tree1.png
+    basePath + "/" + treeType + "_tree.png",   // 新增：apple_tree.png
+    basePath + "/tree.png",
+    "../../assets/game_source/tree/tree.png"
+};
     
     for (const auto& p : maturePaths) {
         if (textureMature.loadFromFile(p)) {
@@ -693,15 +695,22 @@ void TreeManager::clearAllTrees() {
 void TreeManager::loadFromMapObjects(const std::vector<MapObject>& objects, float displayScale) {
     for (const auto& obj : objects) {
         if (obj.gid > 0) {
-            // 从地图对象创建树木
-            // Tiled对象的y坐标是底部，需要转换
             float x = obj.x * displayScale;
             float y = obj.y * displayScale;
             
-            Tree* tree = addTree(x, y, "tree1");
+            // 使用对象的name属性来确定树的类型
+            std::string treeType = obj.name.empty() ? "tree1" : obj.name;
+            
+            Tree* tree = addTree(x, y, treeType);
             if (tree) {
-                tree->setMaxHealth(30.0f);  // 可以从对象属性读取
-                tree->setHealth(30.0f);
+                // 可以从tsx属性读取HP，这里先用默认值
+                if (treeType == "apple") {
+                    tree->setMaxHealth(40.0f);
+                    tree->setHealth(40.0f);
+                } else {
+                    tree->setMaxHealth(30.0f);
+                    tree->setHealth(30.0f);
+                }
             }
         }
     }

@@ -61,7 +61,7 @@
             "scaleInEditor": 1
         }
     },
-    "last.imagePath": "D:/game_source/tree",
+    "last.imagePath": "D:/game/assets/game_source/tree",
     "map.height": 50,
     "map.lastUsedFormat": "json",
     "map.width": 80,
@@ -70,7 +70,7 @@
         "tree.tsx"
     ],
     "project": "1.tiled-project",
-    "property.type": "string",
+    "property.type": "int",
     "recentFiles": [
         "tree.tsx",
         "part1.tmj",
