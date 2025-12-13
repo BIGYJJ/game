@@ -1,9 +1,11 @@
 #pragma once
 #include "State.h"
 #include "../Entity/Player.h"
+#include "../Entity/Tree.h"
 #include "../World/TileMap.h"
 #include "../World/Camera.h"
 #include "../Systems/TimeSystem.h"
+#include "../UI/StatsPanel.h"
 #include <memory>
 #include <string>
 
@@ -37,6 +39,15 @@ private:
     // Render UI layer
     void renderUI(sf::RenderWindow& window);
     
+    // Initialize UI
+    void initUI(sf::RenderWindow& window);
+    
+    // Initialize trees from map
+    void initTrees();
+    
+    // Handle player attack
+    void handlePlayerAttack();
+    
     // Get map name string
     std::string getMapName(MapType mapType) const;
 
@@ -46,7 +57,14 @@ private:
     std::unique_ptr<TileMap> tileMap;
     std::unique_ptr<Camera> camera;
     std::unique_ptr<TimeSystem> timeSystem;
+    std::unique_ptr<TreeManager> treeManager;
+    
+    // UI
+    std::unique_ptr<StatsPanel> statsPanel;
     
     // Current map type
     MapType currentMap;
+    
+    // Attack state tracking
+    bool wasAttacking;
 };

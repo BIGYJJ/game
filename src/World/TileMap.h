@@ -99,6 +99,9 @@ public:
     int getHeight() const;
     int getTileSize() const;
     const std::vector<MapObject>& getObjects() const;
+    
+    // 清除对象（当TreeManager接管树木渲染后调用，避免重复渲染）
+    void clearObjects() { objects.clear(); }
 
 private:
     // ========================================

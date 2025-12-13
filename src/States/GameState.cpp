@@ -5,7 +5,8 @@
 
 GameState::GameState(Game* game, MapType mapType) 
     : State(game)
-    , currentMap(mapType) 
+    , currentMap(mapType)
+    , wasAttacking(false)
 {
     std::cout << "========================================" << std::endl;
     std::cout << "  Pixel Farm RPG - Scene Initialization" << std::endl;
@@ -18,8 +19,15 @@ GameState::GameState(Game* game, MapType mapType)
     // Create TileMap
     tileMap = std::make_unique<TileMap>();
     
+    // Create TreeManager
+    treeManager = std::make_unique<TreeManager>();
+    treeManager->init("../../assets");
+    
     // Load map
     loadMap(mapType);
+    
+    // Initialize trees from map objects
+    initTrees();
     
     // Set player position to map center
     sf::Vector2i mapSize = tileMap->getMapSize();
@@ -34,14 +42,58 @@ GameState::GameState(Game* game, MapType mapType)
     // Create time system
     timeSystem = std::make_unique<TimeSystem>();
     
+    // Initialize UI
+    initUI(game->getWindow());
+    
     std::cout << "[OK] Player Position: (" << player->getPosition().x 
               << ", " << player->getPosition().y << ")" << std::endl;
     std::cout << "\nControls:" << std::endl;
     std::cout << "  WASD/Arrows - Move" << std::endl;
-    std::cout << "  Space       - Attack" << std::endl;
+    std::cout << "  Space       - Attack (chop trees!)" << std::endl;
+    std::cout << "  Tab/C       - Toggle Stats Panel" << std::endl;
     std::cout << "  F1 - Farm Map | F2 - Forest Map | F3 - Reload" << std::endl;
     std::cout << "  ESC - Exit" << std::endl;
     std::cout << "========================================\n" << std::endl;
+}
+
+void GameState::initUI(sf::RenderWindow& window) {
+    // Create stats panel
+    statsPanel = std::make_unique<StatsPanel>();
+    
+    // Try to load icon from various paths
+    // Note: Working directory is usually build/bin/, so ../../ goes back to project root
+    std::vector<std::string> iconPaths = {
+        "../../assets/ui/icon1.png",          // From build/bin/
+        "../../assets/ui/Statspanel.png",     // Alternative name
+        "../../assets/icons/icon1.png",
+        "assets/ui/icon1.png",                // From project root
+        "assets/icons/icon1.png",
+        "assets/icon1.png",
+        "../assets/ui/icon1.png"              // From build/
+    };
+    
+    bool iconLoaded = false;
+    for (const auto& path : iconPaths) {
+        if (std::filesystem::exists(path)) {
+            statsPanel->init(path);
+            iconLoaded = true;
+            std::cout << "[OK] Stats icon loaded: " << path << std::endl;
+            break;
+        }
+    }
+    
+    if (!iconLoaded) {
+        // Use default (will create placeholder)
+        statsPanel->init("../../assets/ui/icon1.png");
+        std::cout << "[WARNING] Stats icon not found, using placeholder" << std::endl;
+        std::cout << "[HINT] Place icon at: assets/ui/icon1.png" << std::endl;
+    }
+    
+    // Position icon at bottom-left of screen
+    sf::Vector2u windowSize = window.getSize();
+    statsPanel->setIconPosition(20.0f, windowSize.y - 80.0f);
+    
+    std::cout << "[OK] Stats Panel initialized" << std::endl;
 }
 
 void GameState::loadMap(MapType mapType) {
@@ -82,6 +134,11 @@ void GameState::loadMap(MapType mapType) {
 }
 
 void GameState::handleInput(const sf::Event& event) {
+    // Handle UI input first
+    if (statsPanel) {
+        statsPanel->handleEvent(event, game->getWindow());
+    }
+    
     if (event.type == sf::Event::KeyPressed) {
         switch (event.key.code) {
             case sf::Keyboard::Escape:
@@ -104,6 +161,21 @@ void GameState::handleInput(const sf::Event& event) {
                 camera->snapTo(player->getPosition());
                 break;
             }
+            
+            // Debug: Add experience/gold for testing
+            case sf::Keyboard::E:
+                if (player) {
+                    player->getStats().addExp(50);
+                    std::cout << "[DEBUG] +50 EXP" << std::endl;
+                }
+                break;
+                
+            case sf::Keyboard::G:
+                if (player) {
+                    player->getStats().addGold(100);
+                    std::cout << "[DEBUG] +100 Gold" << std::endl;
+                }
+                break;
                 
             default:
                 break;
@@ -117,8 +189,13 @@ void GameState::update(float dt) {
         
         player->update(dt);
         
-        // Collision detection
+        // Collision detection with tilemap
         if (tileMap->isColliding(player->getCollisionBox())) {
+            player->setPosition(oldPos);
+        }
+        
+        // Collision detection with trees
+        if (treeManager && treeManager->isCollidingWithAnyTree(player->getCollisionBox())) {
             player->setPosition(oldPos);
         }
         
@@ -130,6 +207,14 @@ void GameState::update(float dt) {
         pos.x = std::max(margin, std::min(pos.x, mapSize.x - margin));
         pos.y = std::max(margin, std::min(pos.y, mapSize.y - margin));
         player->setPosition(pos);
+        
+        // Handle attack - check for tree hits
+        handlePlayerAttack();
+        
+        // Update stats panel with current player stats
+        if (statsPanel) {
+            statsPanel->updateStats(player->getStats());
+        }
     }
     
     // Update camera to follow player
@@ -140,6 +225,16 @@ void GameState::update(float dt) {
     // Update time system
     if (timeSystem) {
         timeSystem->update(dt);
+    }
+    
+    // Update trees
+    if (treeManager) {
+        treeManager->update(dt);
+    }
+    
+    // Update UI
+    if (statsPanel) {
+        statsPanel->update(dt);
     }
 }
 
@@ -154,6 +249,11 @@ void GameState::render(sf::RenderWindow& window) {
         tileMap->render(window, camera->getView());
     }
     
+    // Render trees
+    if (treeManager && camera) {
+        treeManager->render(window, camera->getView());
+    }
+    
     // Render player
     if (player) {
         player->render(window);
@@ -164,14 +264,26 @@ void GameState::render(sf::RenderWindow& window) {
     
     // Render UI overlay
     renderUI(window);
+    
+    // Render tree tooltips (needs world mouse position)
+    if (treeManager && camera) {
+        sf::Vector2i mouseScreenPos = sf::Mouse::getPosition(window);
+        sf::Vector2f mouseWorldPos = window.mapPixelToCoords(mouseScreenPos, camera->getView());
+        treeManager->renderTooltips(window, mouseWorldPos);
+    }
 }
 
 void GameState::renderUI(sf::RenderWindow& window) {
-    // UI background panel
-    sf::RectangleShape uiBackground(sf::Vector2f(500, 80));
+    // UI background panel (top-left info)
+    sf::RectangleShape uiBackground(sf::Vector2f(300, 60));
     uiBackground.setPosition(20, 20);
-    uiBackground.setFillColor(sf::Color(0, 0, 0, 180));
+    uiBackground.setFillColor(sf::Color(0, 0, 0, 150));
     window.draw(uiBackground);
+    
+    // Render stats panel (bottom-left)
+    if (statsPanel) {
+        statsPanel->render(window);
+    }
 }
 
 void GameState::switchMap(MapType newMap) {
@@ -182,6 +294,12 @@ void GameState::switchMap(MapType newMap) {
         
         currentMap = newMap;
         loadMap(newMap);
+        
+        // Clear and reload trees
+        if (treeManager) {
+            treeManager->clearAllTrees();
+        }
+        initTrees();
         
         // Reset player position to map center
         if (player) {
@@ -198,6 +316,99 @@ void GameState::switchMap(MapType newMap) {
         std::cout << "[OK] Map switch complete" << std::endl;
         std::cout << "------------------------------------\n" << std::endl;
     }
+}
+
+void GameState::initTrees() {
+    if (!treeManager || !tileMap) return;
+    
+    // 从地图对象层加载树木
+    const auto& objects = tileMap->getObjects();
+    float displayScale = (float)tileMap->getTileSize() / 32.0f;  // 32是源tile大小
+    
+    std::cout << "[Trees] Loading trees from " << objects.size() << " map objects..." << std::endl;
+    
+    for (const auto& obj : objects) {
+        if (obj.gid > 0) {
+            // 对象的y坐标是底部
+            float x = obj.x * displayScale;
+            float y = obj.y * displayScale;
+            
+            // 计算显示尺寸
+            float width = obj.width * displayScale;
+            float height = obj.height * displayScale;
+            
+            Tree* tree = treeManager->addTree(x, y, "oak");
+            if (tree) {
+                // 设置正确的尺寸（与地图对象一致）
+                tree->setSize(width, height);
+                
+                // 设置树木属性（可以从tsx属性读取）
+                tree->setMaxHealth(30.0f);
+                tree->setHealth(30.0f);
+                tree->setDefense(5.0f);
+                
+                // 设置销毁回调
+                tree->setOnDestroyed([this](Tree& t) {
+                    // 树木被砍倒时的处理
+                    auto drops = t.generateDrops();
+                    for (const auto& drop : drops) {
+                        // 这里可以添加到玩家背包
+                        std::cout << "[Drops] Player gets: " << drop.first 
+                                  << " x" << drop.second << std::endl;
+                        // 添加经验
+                        if (player) {
+                            player->getStats().addExp(10);
+                            player->getStats().addSkillExp(LifeSkill::Farming, 5);
+                        }
+                    }
+                });
+                
+                // 设置果实采摘回调
+                tree->setOnFruitHarvested([this](Tree& t) {
+                    auto drops = t.generateFruitDrops();
+                    for (const auto& drop : drops) {
+                        std::cout << "[Harvest] Player gets: " << drop.first 
+                                  << " x" << drop.second << std::endl;
+                        if (player) {
+                            player->getStats().addExp(5);
+                        }
+                    }
+                });
+            }
+        }
+    }
+    
+    // 清除TileMap中的对象，避免重复渲染
+    // TreeManager现在完全接管树木的渲染和管理
+    tileMap->clearObjects();
+    
+    std::cout << "[Trees] Total trees loaded: " << treeManager->getTreeCount() << std::endl;
+}
+
+void GameState::handlePlayerAttack() {
+    if (!player || !treeManager) return;
+    
+    bool isCurrentlyAttacking = player->isAttacking();
+    
+    // 只在攻击动画开始时检测一次
+    if (isCurrentlyAttacking && !wasAttacking) {
+        // 获取攻击范围
+        sf::Vector2f attackCenter = player->getAttackCenter();
+        float attackRadius = player->getAttackRadius();
+        
+        // 计算伤害
+        float damage = player->performAttack();
+        
+        // 对范围内的树木造成伤害
+        auto hitTrees = treeManager->damageTreesInRange(attackCenter, attackRadius, damage);
+        
+        if (!hitTrees.empty()) {
+            std::cout << "[Attack] Hit " << hitTrees.size() << " tree(s) for " 
+                      << damage << " damage" << std::endl;
+        }
+    }
+    
+    wasAttacking = isCurrentlyAttacking;
 }
 
 std::string GameState::getMapName(MapType mapType) const {

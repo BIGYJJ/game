@@ -75,8 +75,8 @@
          "source":":\/automap-tiles.tsx"
         }, 
         {
-         "firstgid":6,
-         "source":"..\/..\/game\/assets\/Pipoya_RPG_Tileset_32x32\/SampleMap\/[Base]BaseChip_pipo.tsx"
+         "firstgid":196,
+         "source":"..\/Pipoya_RPG_Tileset_32x32\/SampleMap\/[Base]BaseChip_pipo.tsx"
         }],
  "tilewidth":32,
  "type":"map",
