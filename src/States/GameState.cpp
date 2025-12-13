@@ -105,7 +105,7 @@ void GameState::loadMap(MapType mapType) {
             break;
             
         case MapType::Forest:
-            mapPath = "assets/map/forest.tmj";
+            mapPath = "assets/map/forest1.tmj";
             break;
     }
     

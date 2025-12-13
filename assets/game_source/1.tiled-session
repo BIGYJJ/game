@@ -28,11 +28,11 @@
             }
         },
         "part1.tmj": {
-            "scale": 0.33,
-            "selectedLayer": 0,
+            "scale": 0.75,
+            "selectedLayer": 1,
             "viewCenter": {
-                "x": 1092.4242424242425,
-                "y": 551.5151515151514
+                "x": 537.9999999999999,
+                "y": 900
             }
         },
         "part1.tmx": {

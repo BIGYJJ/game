@@ -899,7 +899,7 @@ void TileMap::parseObjectGroups(const std::string& json) {
         }
     }
     
-    std::cout << "[OK] Total " << objects.size() << " map object(s) loaded" << std::endl;
+    std::cout << "[OK] Total1 " << objects.size() << " map object(s) loaded" << std::endl;
 }
 
 // ============================================================================
