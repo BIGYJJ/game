@@ -337,15 +337,44 @@ void GameState::initTrees() {
             float width = obj.width * displayScale;
             float height = obj.height * displayScale;
             
-            Tree* tree = treeManager->addTree(x, y, "oak");
+            // ========================================
+            // 根据 gid 判断树类型（关键修复！）
+            // tree.tsx: firstgid=129
+            //   - id=0 (gid=129) -> tree1 (普通树)
+            //   - id=1 (gid=130) -> apple (苹果树)
+            // ========================================
+            std::string treeType;
+            float hp = 30.0f;
+            
+            if (obj.gid == 129) {
+                treeType = "tree1";  // 普通树
+                hp = 30.0f;
+                std::cout << "[Trees] gid=129 -> tree1 (普通树)" << std::endl;
+            } else if (obj.gid == 130) {
+                treeType = "apple";  // 苹果树
+                hp = 40.0f;
+                std::cout << "[Trees] gid=130 -> apple (苹果树)" << std::endl;
+            } else {
+                // 其他情况：尝试用对象名称，否则默认为普通树
+                treeType = obj.name.empty() ? "tree1" : obj.name;
+                hp = 30.0f;
+                std::cout << "[Trees] gid=" << obj.gid << " -> " << treeType << std::endl;
+            }
+            
+            Tree* tree = treeManager->addTree(x, y, treeType);
             if (tree) {
                 // 设置正确的尺寸（与地图对象一致）
                 tree->setSize(width, height);
                 
-                // 设置树木属性（可以从tsx属性读取）
-                tree->setMaxHealth(30.0f);
-                tree->setHealth(30.0f);
+                // 设置树木属性
+                tree->setMaxHealth(hp);
+                tree->setHealth(hp);
                 tree->setDefense(5.0f);
+                
+                // 普通树可以在成熟后变成果树
+                if (treeType == "tree1") {
+                    tree->setCanTransform(true);
+                }
                 
                 // 设置销毁回调
                 tree->setOnDestroyed([this](Tree& t) {
@@ -373,6 +402,12 @@ void GameState::initTrees() {
                             player->getStats().addExp(5);
                         }
                     }
+                });
+                
+                // 设置生长阶段变化回调
+                tree->setOnGrowthStageChanged([](Tree& t) {
+                    std::cout << "[Tree] " << t.getName() << " changed to: " 
+                              << t.getGrowthStageName() << std::endl;
                 });
             }
         }

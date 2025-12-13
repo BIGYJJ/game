@@ -29,6 +29,8 @@ Tree::Tree()
     , isHovered(false)
     , shakeTimer(0.0f)
     , shakeIntensity(0.0f)
+    , canTransform(false)       // 新增：是否可以变换
+    , hasTransformed(false)     // 新增：是否已经变换过
     , onDestroyed(nullptr)
     , onFruitHarvested(nullptr)
     , onGrowthStageChanged(nullptr)
@@ -55,23 +57,28 @@ void Tree::init(float x, float y, const std::string& type) {
         maxHealth = 30.0f;
         defense = 5.0f;
         size = sf::Vector2f(64, 64);
+        canTransform = true;  // 普通树可以变换成果树
+        hasTransformed = false;
     } else if (type == "pine") {
         name = "松树";
         maxHealth = 40.0f;
         defense = 8.0f;
         size = sf::Vector2f(64, 96);
-    } else if (type == "apple") {
+        canTransform = false;
+    } else if (type == "apple_tree") {
         name = "苹果树";
         maxHealth = 25.0f;
         defense = 3.0f;
         size = sf::Vector2f(64, 64);
+        canTransform = false;
         // 苹果树的果实掉落
         fruitDropItems.push_back(DropItem("apple", "苹果", 1, 3, 1.0f));
-    } else if (type == "cherry") {
+    } else if (type == "cherry_tree") {
         name = "樱桃树";
         maxHealth = 20.0f;
         defense = 2.0f;
         size = sf::Vector2f(64, 64);
+        canTransform = false;
         fruitDropItems.push_back(DropItem("cherry", "樱桃", 2, 5, 1.0f));
     }
     
@@ -80,25 +87,44 @@ void Tree::init(float x, float y, const std::string& type) {
 }
 
 bool Tree::loadTextures(const std::string& basePath) {
-    std::string path = basePath + "/" + treeType;
+    std::cout << "[Tree] loadTextures called for type: " << treeType 
+              << " basePath: " << basePath << std::endl;
     
-    // 尝试加载各阶段贴图
     bool loaded = false;
     
-    // 成熟树木贴图（必需）
-    std::vector<std::string> maturePaths = {
-    path + "/mature.png",
-    path + ".png",
-    basePath + "/" + treeType + ".png",        // 新增：apple.png 或 tree1.png
-    basePath + "/" + treeType + "_tree.png",   // 新增：apple_tree.png
-    basePath + "/tree.png",
-    "../../assets/game_source/tree/tree.png"
-};
+    // 根据树类型构建贴图路径
+    std::vector<std::string> texturePaths;
     
-    for (const auto& p : maturePaths) {
-        if (textureMature.loadFromFile(p)) {
+    if (treeType == "apple") {
+        texturePaths = {
+            basePath + "/apple_tree.png",
+            basePath + "/apple.png",
+            "../../assets/game_source/tree/apple_tree.png",
+            "assets/game_source/tree/apple_tree.png"
+        };
+    } else if (treeType == "cherry") {
+        texturePaths = {
+            basePath + "/cherry_tree.png",
+            basePath + "/cherry.png",
+            "../../assets/game_source/tree/cherry_tree.png",
+            "assets/game_source/tree/cherry_tree.png"
+        };
+    } else {
+        // tree1, oak 等普通树
+        texturePaths = {
+            basePath + "/tree.png",
+            basePath + "/tree1.png",
+            basePath + "/oak.png",
+            "../../assets/game_source/tree/tree.png",
+            "assets/game_source/tree/tree.png"
+        };
+    }
+    
+    // 尝试加载贴图
+    for (const auto& path : texturePaths) {
+        if (textureMature.loadFromFile(path)) {
             loaded = true;
-            std::cout << "[Tree] Loaded texture: " << p << std::endl;
+            std::cout << "[Tree] Loaded texture: " << path << std::endl;
             break;
         }
     }
@@ -106,31 +132,77 @@ bool Tree::loadTextures(const std::string& basePath) {
     if (!loaded) {
         // 创建占位贴图
         sf::Image placeholder;
-        placeholder.create(64, 64, sf::Color(34, 139, 34));  // 绿色
+        if (treeType == "apple_tree") {
+            placeholder.create(64, 64, sf::Color(255, 100, 100));  // 红色代表苹果树
+        } else if (treeType == "cherry_tree") {
+            placeholder.create(64, 64, sf::Color(255, 150, 200));  // 粉色代表樱桃树
+        } else {
+            placeholder.create(64, 64, sf::Color(34, 139, 34));    // 绿色代表普通树
+        }
         textureMature.loadFromImage(placeholder);
         std::cout << "[Tree] Using placeholder texture for: " << treeType << std::endl;
     }
     
-    // 可选：加载其他阶段贴图
-    textureSeedling.loadFromFile(path + "/seedling.png");
-    textureGrowing.loadFromFile(path + "/growing.png");
-    textureFruiting.loadFromFile(path + "/fruiting.png");
-    
-    // 如果果实贴图加载失败，使用成熟贴图
-    if (textureFruiting.getSize().x == 0) {
-        textureFruiting = textureMature;
-    }
-    if (textureSeedling.getSize().x == 0) {
-        textureSeedling = textureMature;
-    }
-    if (textureGrowing.getSize().x == 0) {
-        textureGrowing = textureMature;
-    }
+    // 其他阶段贴图使用成熟贴图
+    textureSeedling = textureMature;
+    textureGrowing = textureMature;
+    textureFruiting = textureMature;
     
     texturesLoaded = true;
     updateSprite();
     
     return loaded;
+}
+
+// ============================================================================
+// 变换树类型（普通树变成果树）
+// ============================================================================
+
+void Tree::transformToFruitTree() {
+    if (!canTransform || hasTransformed) return;
+    
+    // 随机选择变成苹果树或樱桃树
+    int choice = rand() % 2;
+    std::string newType = (choice == 0) ? "apple" : "cherry";
+    
+    std::cout << "[Tree] " << name << " transforms to " << newType << " tree!" << std::endl;
+    
+    // 保存位置和尺寸
+    sf::Vector2f savedPos = position;
+    sf::Vector2f savedSize = size;
+    
+    // 重新初始化为新类型
+    treeType = newType;
+    
+    if (newType == "apple_tree") {
+        name = "苹果树";
+        maxHealth = 25.0f;
+        defense = 3.0f;
+        fruitDropItems.clear();
+        fruitDropItems.push_back(DropItem("apple", "苹果", 1, 3, 1.0f));
+    } else if (newType == "cherry_tree"){
+        name = "樱桃树";
+        maxHealth = 20.0f;
+        defense = 2.0f;
+        fruitDropItems.clear();
+        fruitDropItems.push_back(DropItem("cherry", "樱桃", 2, 5, 1.0f));
+    }
+    
+    health = maxHealth;
+    hasTransformed = true;
+    canTransform = false;
+    
+    // 恢复位置和尺寸
+    position = savedPos;
+    size = savedSize;
+    
+    // 重新加载贴图
+    // 注意：这里需要知道 basePath，我们用一个常用路径
+    loadTextures("../../assets/game_source/tree");
+    
+    // 设置为结果阶段
+    growthStage = TreeGrowthStage::Fruiting;
+    updateSprite();
 }
 
 // ============================================================================
@@ -175,8 +247,14 @@ void Tree::grow(float dt) {
             break;
             
         case TreeGrowthStage::Mature:
-            // 如果有果实掉落配置，才会结果
-            if (!fruitDropItems.empty() && growthTimer >= matureTime) {
+            // 普通树成熟后可以变换成果树
+            if (canTransform && !hasTransformed && growthTimer >= matureTime) {
+                growthTimer = 0;
+                transformToFruitTree();  // 变换成苹果树或樱桃树
+                return;  // 变换后直接返回，避免重复处理
+            }
+            // 如果是果树，检查是否应该结果
+            else if (!fruitDropItems.empty() && growthTimer >= matureTime) {
                 growthTimer = 0;
                 growthStage = TreeGrowthStage::Fruiting;
             }
@@ -503,13 +581,6 @@ void TreeManager::update(float dt) {
     // 更新所有树木
     for (auto it = trees.begin(); it != trees.end(); ) {
         (*it)->update(dt);
-        
-        // 移除死亡的树木（可选，也可以保留残骸）
-        // if ((*it)->isDead()) {
-        //     it = trees.erase(it);
-        // } else {
-        //     ++it;
-        // }
         ++it;
     }
 }
@@ -676,7 +747,7 @@ Tree* TreeManager::addTree(float x, float y, const std::string& type) {
     Tree* ptr = tree.get();
     trees.push_back(std::move(tree));
     
-    std::cout << "[TreeManager] Added tree at (" << x << ", " << y << ")" << std::endl;
+    std::cout << "[TreeManager] Added " << type << " tree at (" << x << ", " << y << ")" << std::endl;
     return ptr;
 }
 
@@ -704,7 +775,7 @@ void TreeManager::loadFromMapObjects(const std::vector<MapObject>& objects, floa
             Tree* tree = addTree(x, y, treeType);
             if (tree) {
                 // 可以从tsx属性读取HP，这里先用默认值
-                if (treeType == "apple") {
+                if (treeType == "apple_tree") {
                     tree->setMaxHealth(40.0f);
                     tree->setHealth(40.0f);
                 } else {

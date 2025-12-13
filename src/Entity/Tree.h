@@ -12,6 +12,7 @@
 //   - 生长阶段：幼苗 -> 成长 -> 成熟 -> 有果实
 //   - 属性：生命值、防御、掉落物品
 //   - 交互：砍伐、采摘、悬浮提示
+//   - 变换：普通树成熟后可随机变成苹果树或樱桃树
 // ============================================================================
 
 // 生长阶段
@@ -95,6 +96,13 @@ public:
     std::string getGrowthStageName() const;
     
     // ========================================
+    // 变换系统（普通树变成果树）
+    // ========================================
+    void transformToFruitTree();
+    bool canBeTransformed() const { return canTransform && !hasTransformed; }
+    void setCanTransform(bool can) { canTransform = can; }
+    
+    // ========================================
     // 属性 Getters
     // ========================================
     float getHealth() const { return health; }
@@ -175,6 +183,10 @@ private:
     float growingTime;          // 成长阶段所需时间
     float matureTime;           // 成熟到结果所需时间
     float fruitRegrowTime;      // 果实再生时间
+    
+    // === 变换 ===
+    bool canTransform;          // 是否可以变换成果树
+    bool hasTransformed;        // 是否已经变换过
     
     // === 渲染 ===
     sf::Sprite sprite;
