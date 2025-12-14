@@ -6,6 +6,10 @@
 #include "../World/Camera.h"
 #include "../Systems/TimeSystem.h"
 #include "../UI/StatsPanel.h"
+#include "../UI/InventoryPanel.h"
+#include "../Items/Item.h"
+#include "../Items/Inventory.h"
+#include "../Items/DroppedItem.h"
 #include <memory>
 #include <string>
 
@@ -45,8 +49,17 @@ private:
     // Initialize trees from map
     void initTrees();
     
+    // Initialize item system
+    void initItemSystem();
+    
     // Handle player attack
     void handlePlayerAttack();
+    
+    // Handle item pickup
+    void handleItemPickup();
+    
+    // Use consumable item (callback)
+    bool onUseItem(const ItemStack& item, const ItemData* data);
     
     // Get map name string
     std::string getMapName(MapType mapType) const;
@@ -59,12 +72,20 @@ private:
     std::unique_ptr<TimeSystem> timeSystem;
     std::unique_ptr<TreeManager> treeManager;
     
+    // Item system
+    std::unique_ptr<Inventory> inventory;
+    std::unique_ptr<DroppedItemManager> droppedItemManager;
+    
     // UI
     std::unique_ptr<StatsPanel> statsPanel;
+    std::unique_ptr<InventoryPanel> inventoryPanel;
     
     // Current map type
     MapType currentMap;
     
     // Attack state tracking
     bool wasAttacking;
+    
+    // Item pickup range
+    static constexpr float PICKUP_RANGE = 50.0f;
 };

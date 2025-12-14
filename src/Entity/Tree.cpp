@@ -26,19 +26,24 @@ Tree::Tree()
     , fruitRegrowTime(60.0f)    // 1分钟果实再生
     , currentTexture(nullptr)
     , texturesLoaded(false)
+    , expMin(5)                 // 默认经验范围
+    , expMax(12)
+    , goldMin(10)               // 默认金币范围
+    , goldMax(30)
+    , dropMax(3)                // 默认最大掉落数量
     , isHovered(false)
     , shakeTimer(0.0f)
     , shakeIntensity(0.0f)
-    , canTransform(false)       // 新增：是否可以变换
-    , hasTransformed(false)     // 新增：是否已经变换过
+    , canTransform(false)       // 是否可以变换
+    , hasTransformed(false)     // 是否已经变换过
     , onDestroyed(nullptr)
     , onFruitHarvested(nullptr)
     , onGrowthStageChanged(nullptr)
 {
     // 默认掉落物品
-    dropItems.push_back(DropItem("wood", "木材", 2, 5, 1.0f));
-    dropItems.push_back(DropItem("stick", "树枝", 1, 3, 0.8f));
-    dropItems.push_back(DropItem("seed", "种子", 0, 2, 0.3f));
+    dropItems.push_back(DropItem("wood", "木材", 1, 3, 0.75f));
+    dropItems.push_back(DropItem("seed", "种子", 1, 2, 0.5f));
+    dropItems.push_back(DropItem("stick", "树枝", 1, 2, 0.4f));
 }
 
 Tree::Tree(float x, float y, const std::string& type)
@@ -112,47 +117,77 @@ void Tree::initFromTileProperty(float x, float y, const TileProperty* prop) {
     defense = (float)prop->defense;
     size = sf::Vector2f(64, 64);  // 默认尺寸，可从外部设置
     
+    // 解析经验和金币奖励
+    expMin = prop->expMin > 0 ? prop->expMin : 5;
+    expMax = prop->expMax > 0 ? prop->expMax : 12;
+    goldMin = prop->goldMin > 0 ? prop->goldMin : 10;
+    goldMax = prop->goldMax > 0 ? prop->goldMax : 30;
+    dropMax = prop->dropMax > 0 ? prop->dropMax : 3;
+    
     // 清空并设置掉落物品
     dropItems.clear();
     fruitDropItems.clear();
     
-    // 根据 dropTypes 和 dropProbabilities 设置掉落
-    for (size_t i = 0; i < prop->dropTypes.size(); i++) {
-        const std::string& itemId = prop->dropTypes[i];
-        float prob = (i < prop->dropProbabilities.size()) ? prop->dropProbabilities[i] : 0.5f;
-        
-        // 创建中文名映射
-        std::string itemName = itemId;
-        if (itemId == "wood") itemName = "木材";
-        else if (itemId == "seed") itemName = "种子";
-        else if (itemId == "stick") itemName = "树枝";
-        else if (itemId == "apple") itemName = "苹果";
-        else if (itemId == "cherry") itemName = "樱桃";
-        
-        // 判断是砍伐掉落还是果实掉落
-        if (itemId == "apple" || itemId == "cherry" || 
-            itemId.find("fruit") != std::string::npos) {
-            fruitDropItems.push_back(DropItem(itemId, itemName, 1, 3, prob));
-        } else {
-            dropItems.push_back(DropItem(itemId, itemName, 1, 3, prob));
+    // ========================================
+    // 掉落规则：
+    //   如果 tsx 文件设置了 drop_type，使用配置的掉落
+    //   否则使用默认掉落（wood, seed, stick）
+    //   每个物品的掉落概率由 dropX_Probability 设置
+    //   实际掉落数量使用递减概率计算（见 generateDrops）
+    // ========================================
+    
+    if (!prop->dropTypes.empty()) {
+        // 使用 TSX 配置的掉落
+        for (size_t i = 0; i < prop->dropTypes.size(); i++) {
+            const std::string& itemId = prop->dropTypes[i];
+            float prob = (i < prop->dropProbabilities.size()) ? prop->dropProbabilities[i] : 0.5f;
+            
+            // 创建中文名映射
+            std::string itemName = itemId;
+            if (itemId == "wood") itemName = "木材";
+            else if (itemId == "seed") itemName = "种子";
+            else if (itemId == "stick") itemName = "树枝";
+            else if (itemId == "apple") itemName = "苹果";
+            else if (itemId == "cherry") itemName = "樱桃";
+            else if (itemId == "stone") itemName = "石头";
+            
+            // 判断是砍伐掉落还是果实掉落
+            if (itemId == "apple" || itemId == "cherry" || 
+                itemId.find("fruit") != std::string::npos) {
+                fruitDropItems.push_back(DropItem(itemId, itemName, 1, dropMax, prob));
+            } else {
+                dropItems.push_back(DropItem(itemId, itemName, 1, dropMax, prob));
+            }
         }
+    } else {
+        // 使用默认掉落（当 tsx 没有设置 drop_type 时）
+        float defaultProb1 = 0.75f;
+        float defaultProb2 = 0.5f;
+        float defaultProb3 = 0.4f;
+        
+        if (prop->dropProbabilities.size() >= 1) defaultProb1 = prop->dropProbabilities[0];
+        if (prop->dropProbabilities.size() >= 2) defaultProb2 = prop->dropProbabilities[1];
+        if (prop->dropProbabilities.size() >= 3) defaultProb3 = prop->dropProbabilities[2];
+        
+        dropItems.push_back(DropItem("wood", "木材", 1, dropMax, defaultProb1));
+        dropItems.push_back(DropItem("seed", "种子", 1, dropMax, defaultProb2));
+        dropItems.push_back(DropItem("stick", "树枝", 1, dropMax, defaultProb3));
     }
     
     // 设置中文显示名
     if (treeType == "tree1") {
         name = "橡树";
-        canTransform = true;
-        hasTransformed = false;
+        // 不再默认设置 canTransform，由外部控制
     } else if (treeType == "apple_tree") {
         name = "苹果树";
-        canTransform = false;
     } else if (treeType == "cherry_tree") {
         name = "樱桃树";
-        canTransform = false;
+    } else if (treeType == "cherry_blossom_tree" || treeType == "cherry_blossom_tree.png") {
+        name = "樱花树";
     } else {
         // 未知类型，使用原始名称
-        canTransform = false;
     }
+    canTransform = false;  // 默认不变换，由外部设置
     
     health = maxHealth;
     
@@ -165,10 +200,10 @@ void Tree::initFromTileProperty(float x, float y, const TileProperty* prop) {
 }
 
 void Tree::setTextureFromProperty(const TileProperty* prop) {
-    if (!prop || !prop->hasTexture) return;
+    if (!prop || !prop->hasTexture || !prop->texture) return;
     
-    // 复制贴图
-    textureMature = prop->texture;
+    // 从 shared_ptr 复制贴图（这会创建独立的副本，避免引用失效）
+    textureMature = *prop->texture;
     textureSeedling = textureMature;
     textureGrowing = textureMature;
     textureFruiting = textureMature;
@@ -557,14 +592,34 @@ void Tree::addFruitDropItem(const DropItem& item) {
 std::vector<std::pair<std::string, int>> Tree::generateDrops() {
     std::vector<std::pair<std::string, int>> result;
     
+    // ========================================
+    // 递减概率掉落计算规则：
+    //   每个物品独立计算掉落数量
+    //   第1个: 概率 = baseProbability
+    //   第2个: 概率 = baseProbability * baseProbability
+    //   第3个: 概率 = baseProbability ^ 3
+    //   ...以此类推，直到 dropMax 或随机失败
+    // ========================================
+    
     for (const auto& item : dropItems) {
-        float roll = static_cast<float>(rand()) / RAND_MAX;
-        if (roll <= item.dropChance) {
-            int count = item.minCount + rand() % (item.maxCount - item.minCount + 1);
-            if (count > 0) {
-                result.push_back({item.itemId, count});
-                std::cout << "[Tree] Dropped: " << item.name << " x" << count << std::endl;
+        int count = 0;
+        float currentProbability = item.dropChance;
+        
+        // 递减概率计算
+        for (int i = 0; i < dropMax; i++) {
+            float roll = static_cast<float>(rand()) / RAND_MAX;
+            if (roll < currentProbability) {
+                count++;
+                currentProbability *= item.dropChance;  // 概率递减
+            } else {
+                break;  // 一旦失败就停止
             }
+        }
+        
+        if (count > 0) {
+            result.push_back({item.itemId, count});
+            std::cout << "[Tree] Dropped: " << item.name << " x" << count 
+                      << " (prob=" << (int)(item.dropChance * 100) << "%)" << std::endl;
         }
     }
     
@@ -586,6 +641,16 @@ std::vector<std::pair<std::string, int>> Tree::generateFruitDrops() {
     }
     
     return result;
+}
+
+int Tree::getExpReward() const {
+    if (expMax <= expMin) return expMin;
+    return expMin + rand() % (expMax - expMin + 1);
+}
+
+int Tree::getGoldReward() const {
+    if (goldMax <= goldMin) return goldMin;
+    return goldMin + rand() % (goldMax - goldMin + 1);
 }
 
 // ============================================================================
@@ -644,11 +709,14 @@ bool TreeManager::init(const std::string& assetsPath) {
     assetsBasePath = assetsPath;
     
     // 尝试加载字体
+    // 优先使用系统中文字体，因为 pixel.ttf 可能不支持中文
     std::vector<std::string> fontPaths = {
+        "C:/Windows/Fonts/msyh.ttc",        // 微软雅黑（优先）
+        "C:/Windows/Fonts/simhei.ttf",      // 黑体
+        "C:/Windows/Fonts/simsun.ttc",      // 宋体
         assetsPath + "/fonts/pixel.ttf",
+        "../../assets/fonts/pixel.ttf",
         "../../assets/fonts/font.ttf",
-        "C:/Windows/Fonts/msyh.ttc",
-        "C:/Windows/Fonts/simhei.ttf"
     };
     
     for (const auto& path : fontPaths) {
@@ -717,61 +785,63 @@ void TreeManager::renderTooltip(sf::RenderWindow& window, Tree* tree) {
     float tooltipX = mouseScreenPos.x + 20.0f;
     float tooltipY = mouseScreenPos.y + 20.0f;
     
-    // 构建提示内容
-    std::vector<std::wstring> lines;
-    lines.push_back(std::wstring(tree->getName().begin(), tree->getName().end()));
+    // ========================================
+    // 使用 sf::String 代替 std::wstring
+    // sf::String 可以正确处理 UTF-8 中文
+    // ========================================
+    
+    std::vector<sf::String> lines;
+    
+    // 标题（树木名称）
+    lines.push_back(sf::String::fromUtf8(tree->getName().begin(), tree->getName().end()));
     
     // 类型
-    std::wstring typeLine = L"类型: ";
-    std::string treeType = tree->getTreeType();
-    typeLine += std::wstring(treeType.begin(), treeType.end());
-    lines.push_back(typeLine);
+    std::string typeStr = "类型: " + tree->getTreeType();
+    lines.push_back(sf::String::fromUtf8(typeStr.begin(), typeStr.end()));
     
     // 生长状态
-    std::wstring stageLine = L"状态: ";
-    std::string stageName = tree->getGrowthStageName();
-    stageLine += std::wstring(stageName.begin(), stageName.end());
-    lines.push_back(stageLine);
+    std::string stageStr = "状态: " + tree->getGrowthStageName();
+    lines.push_back(sf::String::fromUtf8(stageStr.begin(), stageStr.end()));
     
     // 空行用于分隔
-    lines.push_back(L"");
+    lines.push_back("");
     
     // 生命值
-    std::wstringstream hpStream;
-    hpStream << L"生命值: " << (int)tree->getHealth() << L" / " << (int)tree->getMaxHealth();
-    lines.push_back(hpStream.str());
+    std::ostringstream hpStream;
+    hpStream << "生命值: " << (int)tree->getHealth() << " / " << (int)tree->getMaxHealth();
+    lines.push_back(sf::String::fromUtf8(hpStream.str().begin(), hpStream.str().end()));
     
     // 防御
-    std::wstringstream defStream;
-    defStream << L"防御力: " << (int)tree->getDefense();
-    lines.push_back(defStream.str());
+    std::ostringstream defStream;
+    defStream << "防御力: " << (int)tree->getDefense();
+    lines.push_back(sf::String::fromUtf8(defStream.str().begin(), defStream.str().end()));
     
     // 空行用于分隔
-    lines.push_back(L"");
+    lines.push_back("");
     
     // 掉落物品
     if (!tree->getDropItems().empty()) {
-        lines.push_back(L"== 砍伐掉落 ==");
+        lines.push_back(sf::String::fromUtf8(std::string("== 砍伐掉落 ==").begin(), std::string("== 砍伐掉落 ==").end()));
         for (const auto& item : tree->getDropItems()) {
-            std::wstringstream itemStream;
-            itemStream << L"  • " << std::wstring(item.name.begin(), item.name.end());
-            itemStream << L" x" << item.minCount << L"-" << item.maxCount;
-            itemStream << L" (" << (int)(item.dropChance * 100) << L"%)";
-            lines.push_back(itemStream.str());
+            std::ostringstream itemStream;
+            itemStream << "  - " << item.name;
+            itemStream << " x1-" << tree->getDropMax();
+            itemStream << " (" << (int)(item.dropChance * 100) << "%)";
+            lines.push_back(sf::String::fromUtf8(itemStream.str().begin(), itemStream.str().end()));
         }
     }
     
     // 果实
     if (!tree->getFruitDropItems().empty()) {
-        lines.push_back(L"");
-        lines.push_back(L"== 果实 ==");
+        lines.push_back("");
+        lines.push_back(sf::String::fromUtf8(std::string("== 果实 ==").begin(), std::string("== 果实 ==").end()));
         for (const auto& item : tree->getFruitDropItems()) {
-            std::wstringstream itemStream;
-            itemStream << L"  • " << std::wstring(item.name.begin(), item.name.end());
+            std::ostringstream itemStream;
+            itemStream << "  - " << item.name;
             if (tree->hasFruit()) {
-                itemStream << L" [可采摘]";
+                itemStream << " [可采摘]";
             }
-            lines.push_back(itemStream.str());
+            lines.push_back(sf::String::fromUtf8(itemStream.str().begin(), itemStream.str().end()));
         }
     }
     
@@ -823,7 +893,7 @@ void TreeManager::renderTooltip(sf::RenderWindow& window, Tree* tree) {
     
     float y = tooltipY + padding;
     for (size_t i = 0; i < lines.size(); i++) {
-        if (lines[i].empty()) {
+        if (lines[i].isEmpty()) {
             y += lineHeight * 0.3f;  // 空行只占部分高度
             continue;
         }
@@ -838,7 +908,7 @@ void TreeManager::renderTooltip(sf::RenderWindow& window, Tree* tree) {
             text.setStyle(sf::Text::Bold);
         }
         // 分隔符用特殊颜色
-        else if (lines[i].find(L"==") != std::wstring::npos) {
+        else if (lines[i].find("==") != sf::String::InvalidPos) {
             text.setFillColor(sf::Color(180, 140, 100));
             text.setCharacterSize(16);
             text.setStyle(sf::Text::Bold);

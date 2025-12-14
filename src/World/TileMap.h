@@ -2,6 +2,7 @@
 #include <SFML/Graphics.hpp>
 #include <vector>
 #include <string>
+#include <memory>
 
 // ============================================================================
 // TileMap - Supports loading Tiled exported .tmj/.json files
@@ -40,10 +41,19 @@ struct TileProperty {
     std::vector<std::string> dropTypes;         // 掉落物品类型列表
     std::vector<float> dropProbabilities;       // 各物品掉落概率
     std::string imagePath;          // 该tile的图片路径
-    sf::Texture texture;            // 该tile的独立贴图（用于collection of images）
+    
+    // 击杀奖励
+    int expMin;                     // 最小经验
+    int expMax;                     // 最大经验
+    int goldMin;                    // 最小金币
+    int goldMax;                    // 最大金币
+    
+    // 贴图（使用shared_ptr避免复制时失效）
+    std::shared_ptr<sf::Texture> texture;
     bool hasTexture;                // 是否有独立贴图
     
-    TileProperty() : localId(0), hp(30), defense(5), dropMax(3), hasTexture(false) {}
+    TileProperty() : localId(0), hp(30), defense(5), dropMax(3), 
+                     expMin(0), expMax(0), goldMin(0), goldMax(0), hasTexture(false) {}
 };
 
 struct TilesetInfo {

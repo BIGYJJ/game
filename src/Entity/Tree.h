@@ -152,6 +152,15 @@ public:
     std::vector<std::pair<std::string, int>> generateDrops();
     std::vector<std::pair<std::string, int>> generateFruitDrops();
     
+    // 获取击杀奖励（随机范围内）
+    int getExpReward() const;
+    int getGoldReward() const;
+    int getExpMin() const { return expMin; }
+    int getExpMax() const { return expMax; }
+    int getGoldMin() const { return goldMin; }
+    int getGoldMax() const { return goldMax; }
+    int getDropMax() const { return dropMax; }
+    
     // ========================================
     // 悬浮提示
     // ========================================
@@ -208,6 +217,13 @@ private:
     std::vector<DropItem> dropItems;        // 砍伐掉落
     std::vector<DropItem> fruitDropItems;   // 果实掉落
     std::vector<DropParticle> dropParticles;
+    
+    // === 击杀奖励 ===
+    int expMin;                 // 最小经验
+    int expMax;                 // 最大经验
+    int goldMin;                // 最小金币
+    int goldMax;                // 最大金币
+    int dropMax;                // 单个物品最大掉落数量
     
     // === 交互状态 ===
     bool isHovered;

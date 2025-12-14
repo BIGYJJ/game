@@ -748,6 +748,14 @@ bool TileMap::loadTsxFile(const std::string& tsxPath, TilesetInfo& ts) {
                     prop.defense = std::stoi(propValue);
                 } else if (propName == "drop_max") {
                     prop.dropMax = (int)std::stof(propValue);
+                } else if (propName == "exp_min") {
+                    prop.expMin = std::stoi(propValue);
+                } else if (propName == "exp_max") {
+                    prop.expMax = std::stoi(propValue);
+                } else if (propName == "gold_min") {
+                    prop.goldMin = std::stoi(propValue);
+                } else if (propName == "gold_max") {
+                    prop.goldMax = std::stoi(propValue);
                 } else if (propName == "drop_type") {
                     // 解析掉落类型列表，格式: "\"wood\",\"seed\",\"stick\""
                     std::string dropStr = propValue;
@@ -810,6 +818,7 @@ bool TileMap::loadTsxFile(const std::string& tsxPath, TilesetInfo& ts) {
     // ========================================
     // 处理 "collection of images" tileset (columns == 0)
     // 每个 tile 有独立的图片文件
+    // 使用 shared_ptr 避免 vector 重新分配时贴图失效
     // ========================================
     if (ts.columns == 0) {
         std::cout << "     [INFO] Collection of images tileset detected" << std::endl;
@@ -819,10 +828,13 @@ bool TileMap::loadTsxFile(const std::string& tsxPath, TilesetInfo& ts) {
         for (auto& prop : ts.tileProperties) {
             if (prop.imagePath.empty()) continue;
             
+            // 创建 shared_ptr 管理的贴图
+            prop.texture = std::make_shared<sf::Texture>();
+            
             std::string imgFullPath = normalizePath(tsxDir, prop.imagePath);
             
             // 尝试加载
-            if (prop.texture.loadFromFile(imgFullPath)) {
+            if (prop.texture->loadFromFile(imgFullPath)) {
                 prop.hasTexture = true;
                 anyLoaded = true;
                 std::cout << "     [Tile " << prop.localId << "] Loaded: " << imgFullPath << std::endl;
@@ -837,7 +849,7 @@ bool TileMap::loadTsxFile(const std::string& tsxPath, TilesetInfo& ts) {
             };
             
             for (const auto& altPath : altPaths) {
-                if (prop.texture.loadFromFile(altPath)) {
+                if (prop.texture->loadFromFile(altPath)) {
                     prop.hasTexture = true;
                     anyLoaded = true;
                     std::cout << "     [Tile " << prop.localId << "] Loaded: " << altPath << std::endl;
@@ -846,13 +858,14 @@ bool TileMap::loadTsxFile(const std::string& tsxPath, TilesetInfo& ts) {
             }
             
             if (!prop.hasTexture) {
+                prop.texture.reset();  // 释放未成功加载的贴图
                 std::cout << "     [Tile " << prop.localId << "] FAILED to load texture" << std::endl;
             }
         }
         
         // 使用第一个 tile 的贴图作为 tileset 的默认贴图（用于向后兼容）
-        if (!ts.tileProperties.empty() && ts.tileProperties[0].hasTexture) {
-            ts.texture = ts.tileProperties[0].texture;
+        if (!ts.tileProperties.empty() && ts.tileProperties[0].hasTexture && ts.tileProperties[0].texture) {
+            ts.texture = *ts.tileProperties[0].texture;
             ts.imagePath = ts.tileProperties[0].imagePath;
         }
         

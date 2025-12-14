@@ -4,6 +4,15 @@
 #include <iostream>
 
 // ============================================================================
+// UTF-8 字符串转换辅助函数
+// ============================================================================
+namespace {
+    inline sf::String toSfString(const std::string& utf8Str) {
+        return sf::String::fromUtf8(utf8Str.begin(), utf8Str.end());
+    }
+}
+
+// ============================================================================
 // 构造函数
 // ============================================================================
 
@@ -67,14 +76,15 @@ bool StatsPanel::init(const std::string& iconPath, const std::string& fontPath) 
     iconSprite.setTexture(iconTexture);
     iconSprite.setScale(iconScale, iconScale);
     
-    // 加载字体
+    // 加载字体（优先使用系统中文字体）
     std::vector<std::string> fontPaths = {
+        "C:/Windows/Fonts/msyh.ttc",      // 微软雅黑（优先）
+        "C:/Windows/Fonts/simhei.ttf",    // 黑体
+        "C:/Windows/Fonts/simsun.ttc",    // 宋体
         fontPath,
         "assets/fonts/pixel.ttf",
         "assets/fonts/font.ttf",
-        "C:/Windows/Fonts/msyh.ttc",      // 微软雅黑
-        "C:/Windows/Fonts/simhei.ttf",    // 黑体
-        "C:/Windows/Fonts/arial.ttf",      // Arial
+        "../../assets/fonts/pixel.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
     };
     
@@ -114,7 +124,7 @@ void StatsPanel::createPanel() {
     if (fontLoaded) {
         // 标题
         titleText.setFont(font);
-        titleText.setString(L"人物属性");
+        titleText.setString(toSfString("人物属性"));
         titleText.setCharacterSize(28);  // 增大标题
         titleText.setFillColor(titleColor);
         titleText.setStyle(sf::Text::Bold);
@@ -272,7 +282,7 @@ void StatsPanel::render(sf::RenderWindow& window) {
             float y = startY;
             
             // === 等级 ===
-            label.setString(L"等级");
+            label.setString(toSfString("等级"));
             label.setPosition(labelX, y);
             window.draw(label);
             value.setString("Lv." + std::to_string(cachedLevel));
@@ -302,14 +312,14 @@ void StatsPanel::render(sf::RenderWindow& window) {
             // === 饥饿条 ===
             drawProgressBar(window, barX, y, barWidth, barHeight, hungerPercent,
                            sf::Color(hungerColor.r, hungerColor.g, hungerColor.b,
-                                    static_cast<sf::Uint8>(255 * panelAlpha)), L"饱食");
+                                    static_cast<sf::Uint8>(255 * panelAlpha)), "饱食");
             y += barHeight + 18.0f;
             
             value.setFillColor(valCol);
             
             // === 战斗属性 ===
             // 攻击力
-            label.setString(L"攻击力");
+            label.setString(toSfString("攻击力"));
             label.setPosition(labelX, y);
             window.draw(label);
             std::stringstream ss;
@@ -320,7 +330,7 @@ void StatsPanel::render(sf::RenderWindow& window) {
             y += lineHeight;
             
             // 防御
-            label.setString(L"防御");
+            label.setString(toSfString("防御"));
             label.setPosition(labelX, y);
             window.draw(label);
             ss.str(""); ss << std::fixed << std::setprecision(0) << cachedDefense;
@@ -330,7 +340,7 @@ void StatsPanel::render(sf::RenderWindow& window) {
             y += lineHeight;
             
             // 速度
-            label.setString(L"速度");
+            label.setString(toSfString("速度"));
             label.setPosition(labelX, y);
             window.draw(label);
             ss.str(""); ss << std::fixed << std::setprecision(0) << cachedSpeed;
@@ -340,7 +350,7 @@ void StatsPanel::render(sf::RenderWindow& window) {
             y += lineHeight;
             
             // 闪避
-            label.setString(L"闪避");
+            label.setString(toSfString("闪避"));
             label.setPosition(labelX, y);
             window.draw(label);
             ss.str(""); ss << std::fixed << std::setprecision(1) << cachedDodge << "%";
@@ -350,7 +360,7 @@ void StatsPanel::render(sf::RenderWindow& window) {
             y += lineHeight;
             
             // 幸运
-            label.setString(L"幸运");
+            label.setString(toSfString("幸运"));
             label.setPosition(labelX, y);
             window.draw(label);
             ss.str(""); ss << std::fixed << std::setprecision(0) << cachedLuck;
@@ -360,7 +370,7 @@ void StatsPanel::render(sf::RenderWindow& window) {
             y += lineHeight + 12.0f;
             
             // === 财产 ===
-            label.setString(L"金币");
+            label.setString(toSfString("金币"));
             label.setPosition(labelX, y);
             window.draw(label);
             value.setFillColor(sf::Color(255, 215, 0, static_cast<sf::Uint8>(255 * panelAlpha)));
@@ -372,7 +382,7 @@ void StatsPanel::render(sf::RenderWindow& window) {
             value.setFillColor(valCol);
             
             // === 生活技能 ===
-            label.setString(L"种植");
+            label.setString(toSfString("种植"));
             label.setPosition(labelX, y);
             window.draw(label);
             value.setString("Lv." + std::to_string(cachedFarmingLv));
@@ -380,7 +390,7 @@ void StatsPanel::render(sf::RenderWindow& window) {
             window.draw(value);
             y += lineHeight;
             
-            label.setString(L"渔业");
+            label.setString(toSfString("渔业"));
             label.setPosition(labelX, y);
             window.draw(label);
             value.setString("Lv." + std::to_string(cachedFishingLv));
@@ -388,7 +398,7 @@ void StatsPanel::render(sf::RenderWindow& window) {
             window.draw(value);
             y += lineHeight;
             
-            label.setString(L"采矿");
+            label.setString(toSfString("采矿"));
             label.setPosition(labelX, y);
             window.draw(label);
             value.setString("Lv." + std::to_string(cachedMiningLv));
@@ -421,11 +431,11 @@ void StatsPanel::drawProgressBar(sf::RenderWindow& window, float x, float y,
         window.draw(fill);
     }
     
-    // 标签
+    // 标签（使用 sf::String::fromUtf8 正确显示中文）
     if (fontLoaded && !label.empty()) {
         sf::Text text;
         text.setFont(font);
-        text.setString(label);
+        text.setString(sf::String::fromUtf8(label.begin(), label.end()));
         text.setCharacterSize(12);
         text.setFillColor(sf::Color(255, 255, 255, static_cast<sf::Uint8>(255 * panelAlpha)));
         text.setPosition(x + 5.0f, y + 1.0f);

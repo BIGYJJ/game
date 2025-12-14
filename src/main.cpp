@@ -14,7 +14,7 @@ int main() {
         game.run();
         
     } catch (const std::exception& e){
-        std::cerr << "Error: " << e.what() << std::endl;
+        std::cerr << "Error1: " << e.what() << std::endl;
         return 1;
     }
     

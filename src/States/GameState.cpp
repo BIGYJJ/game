@@ -16,6 +16,11 @@ GameState::GameState(Game* game, MapType mapType)
     std::cout << "[DEBUG] Working directory: " 
               << std::filesystem::current_path().string() << std::endl;
 
+    // ========================================
+    // 初始化物品系统（必须在其他系统之前）
+    // ========================================
+    initItemSystem();
+
     // Create TileMap
     tileMap = std::make_unique<TileMap>();
     
@@ -51,9 +56,57 @@ GameState::GameState(Game* game, MapType mapType)
     std::cout << "  WASD/Arrows - Move" << std::endl;
     std::cout << "  Space       - Attack (chop trees!)" << std::endl;
     std::cout << "  Tab/C       - Toggle Stats Panel" << std::endl;
+    std::cout << "  I/B         - Toggle Inventory" << std::endl;
     std::cout << "  F1 - Farm Map | F2 - Forest Map | F3 - Reload" << std::endl;
     std::cout << "  ESC - Exit" << std::endl;
     std::cout << "========================================\n" << std::endl;
+}
+
+void GameState::initItemSystem() {
+    std::cout << "[ItemSystem] Initializing..." << std::endl;
+    
+    // 初始化物品数据库
+    ItemDatabase::getInstance().initialize();
+    ItemDatabase::getInstance().loadTextures("");
+    
+    // 创建背包
+    inventory = std::make_unique<Inventory>();
+    
+    // 设置使用物品回调
+    inventory->setOnUseItem([this](const ItemStack& item, const ItemData* data) {
+        return onUseItem(item, data);
+    });
+    
+    // 设置物品添加回调（用于显示提示）
+    inventory->setOnItemAdded([](const ItemStack& item, int slotIndex) {
+        const ItemData* data = ItemDatabase::getInstance().getItemData(item.itemId);
+        if (data) {
+            std::cout << "[Inventory] +" << item.count << " " << data->name << std::endl;
+        }
+    });
+    
+    // 创建掉落物品管理器
+    droppedItemManager = std::make_unique<DroppedItemManager>();
+    droppedItemManager->init("../../assets");
+    
+    // 设置拾取回调
+    droppedItemManager->setOnItemPickup([this](const ItemStack& item) {
+        // 添加到背包
+        int added = inventory->addItemStack(item);
+        if (added < item.count) {
+            // 背包已满，重新掉落未能拾取的物品
+            if (player) {
+                sf::Vector2f pos = player->getPosition();
+                droppedItemManager->spawnItem(item.itemId, item.count - added, pos.x, pos.y);
+            }
+        }
+    });
+    
+    // 测试：给玩家一些初始物品
+    inventory->addItem("wood", 5);
+    inventory->addItem("apple", 3);
+    
+    std::cout << "[ItemSystem] Initialized successfully" << std::endl;
 }
 
 void GameState::initUI(sf::RenderWindow& window) {
@@ -61,15 +114,14 @@ void GameState::initUI(sf::RenderWindow& window) {
     statsPanel = std::make_unique<StatsPanel>();
     
     // Try to load icon from various paths
-    // Note: Working directory is usually build/bin/, so ../../ goes back to project root
     std::vector<std::string> iconPaths = {
-        "../../assets/ui/icon1.png",          // From build/bin/
-        "../../assets/ui/Statspanel.png",     // Alternative name
+        "../../assets/ui/icon1.png",
+        "../../assets/ui/Statspanel.png",
         "../../assets/icons/icon1.png",
-        "assets/ui/icon1.png",                // From project root
+        "assets/ui/icon1.png",
         "assets/icons/icon1.png",
         "assets/icon1.png",
-        "../assets/ui/icon1.png"              // From build/
+        "../assets/ui/icon1.png"
     };
     
     bool iconLoaded = false;
@@ -83,17 +135,32 @@ void GameState::initUI(sf::RenderWindow& window) {
     }
     
     if (!iconLoaded) {
-        // Use default (will create placeholder)
         statsPanel->init("../../assets/ui/icon1.png");
         std::cout << "[WARNING] Stats icon not found, using placeholder" << std::endl;
-        std::cout << "[HINT] Place icon at: assets/ui/icon1.png" << std::endl;
     }
     
     // Position icon at bottom-left of screen
     sf::Vector2u windowSize = window.getSize();
     statsPanel->setIconPosition(20.0f, windowSize.y - 80.0f);
     
-    std::cout << "[OK] Stats Panel initialized" << std::endl;
+    // ========================================
+    // 创建背包面板
+    // ========================================
+    inventoryPanel = std::make_unique<InventoryPanel>();
+    inventoryPanel->init("../../assets/ui/inventory_icon.png");
+    inventoryPanel->setInventory(inventory.get());
+    inventoryPanel->setIconPosition(150.0f, windowSize.y - 80.0f);  // 往右移动更多
+    
+    // 设置丢弃物品回调
+    inventoryPanel->setOnDropItem([this](const ItemStack& item, sf::Vector2f pos) {
+        if (player && droppedItemManager) {
+            sf::Vector2f playerPos = player->getPosition();
+            // 在玩家位置前方掉落
+            droppedItemManager->spawnItem(item.itemId, item.count, playerPos.x + 30, playerPos.y);
+        }
+    });
+    
+    std::cout << "[OK] UI initialized" << std::endl;
 }
 
 void GameState::loadMap(MapType mapType) {
@@ -109,7 +176,6 @@ void GameState::loadMap(MapType mapType) {
             break;
     }
     
-    // Debug: Check if file exists before loading
     if (std::filesystem::exists(mapPath)) {
         std::cout << "[OK] Map file found: " << mapPath << std::endl;
     } else {
@@ -117,7 +183,6 @@ void GameState::loadMap(MapType mapType) {
         std::cerr << "[ERROR] Full path would be: " 
                   << std::filesystem::absolute(mapPath).string() << std::endl;
         
-        // List contents of assets directory for debugging
         if (std::filesystem::exists("assets")) {
             std::cout << "[DEBUG] Contents of 'assets' directory:" << std::endl;
             for (const auto& entry : std::filesystem::recursive_directory_iterator("assets")) {
@@ -128,13 +193,19 @@ void GameState::loadMap(MapType mapType) {
         }
     }
     
-    // Load the Tiled exported .tmj file
-    // Second parameter is the display tile size (adjustable based on window)
     tileMap->loadFromTiled(mapPath, 48);
 }
 
 void GameState::handleInput(const sf::Event& event) {
-    // Handle UI input first
+    // Handle UI input first (inventory panel has priority)
+    if (inventoryPanel) {
+        inventoryPanel->handleEvent(event, game->getWindow());
+        // 如果背包打开，不处理其他输入
+        if (inventoryPanel->isOpen()) {
+            return;
+        }
+    }
+    
     if (statsPanel) {
         statsPanel->handleEvent(event, game->getWindow());
     }
@@ -142,7 +213,12 @@ void GameState::handleInput(const sf::Event& event) {
     if (event.type == sf::Event::KeyPressed) {
         switch (event.key.code) {
             case sf::Keyboard::Escape:
-                requestPop();
+                // 如果背包打开，先关闭背包
+                if (inventoryPanel && inventoryPanel->isOpen()) {
+                    inventoryPanel->close();
+                } else {
+                    requestPop();
+                }
                 break;
                 
             case sf::Keyboard::F1:
@@ -177,6 +253,15 @@ void GameState::handleInput(const sf::Event& event) {
                 }
                 break;
                 
+            // Debug: Add test items
+            case sf::Keyboard::T:
+                if (inventory) {
+                    inventory->addItem("wood", 10);
+                    inventory->addItem("cherry", 5);
+                    std::cout << "[DEBUG] Added test items" << std::endl;
+                }
+                break;
+                
             default:
                 break;
         }
@@ -184,6 +269,12 @@ void GameState::handleInput(const sf::Event& event) {
 }
 
 void GameState::update(float dt) {
+    // 如果背包打开，暂停游戏逻辑
+    if (inventoryPanel && inventoryPanel->isOpen()) {
+        inventoryPanel->update(dt);
+        return;
+    }
+    
     if (player) {
         sf::Vector2f oldPos = player->getPosition();
         
@@ -211,9 +302,17 @@ void GameState::update(float dt) {
         // Handle attack - check for tree hits
         handlePlayerAttack();
         
+        // Handle item pickup
+        handleItemPickup();
+        
         // Update stats panel with current player stats
         if (statsPanel) {
             statsPanel->updateStats(player->getStats());
+        }
+        
+        // Update inventory panel gold display
+        if (inventoryPanel) {
+            inventoryPanel->setGold(player->getStats().getGold());
         }
     }
     
@@ -232,9 +331,17 @@ void GameState::update(float dt) {
         treeManager->update(dt);
     }
     
+    // Update dropped items
+    if (droppedItemManager) {
+        droppedItemManager->update(dt);
+    }
+    
     // Update UI
     if (statsPanel) {
         statsPanel->update(dt);
+    }
+    if (inventoryPanel) {
+        inventoryPanel->update(dt);
     }
 }
 
@@ -247,6 +354,11 @@ void GameState::render(sf::RenderWindow& window) {
     // Render tile map
     if (tileMap && camera) {
         tileMap->render(window, camera->getView());
+    }
+    
+    // Render dropped items (below trees)
+    if (droppedItemManager && camera) {
+        droppedItemManager->render(window, camera->getView());
     }
     
     // Render trees
@@ -266,7 +378,7 @@ void GameState::render(sf::RenderWindow& window) {
     renderUI(window);
     
     // Render tree tooltips (needs world mouse position)
-    if (treeManager && camera) {
+    if (treeManager && camera && !(inventoryPanel && inventoryPanel->isOpen())) {
         sf::Vector2i mouseScreenPos = sf::Mouse::getPosition(window);
         sf::Vector2f mouseWorldPos = window.mapPixelToCoords(mouseScreenPos, camera->getView());
         treeManager->renderTooltips(window, mouseWorldPos);
@@ -284,6 +396,11 @@ void GameState::renderUI(sf::RenderWindow& window) {
     if (statsPanel) {
         statsPanel->render(window);
     }
+    
+    // Render inventory panel
+    if (inventoryPanel) {
+        inventoryPanel->render(window);
+    }
 }
 
 void GameState::switchMap(MapType newMap) {
@@ -300,6 +417,11 @@ void GameState::switchMap(MapType newMap) {
             treeManager->clearAllTrees();
         }
         initTrees();
+        
+        // Clear dropped items
+        if (droppedItemManager) {
+            droppedItemManager->clearAll();
+        }
         
         // Reset player position to map center
         if (player) {
@@ -321,22 +443,14 @@ void GameState::switchMap(MapType newMap) {
 void GameState::initTrees() {
     if (!treeManager || !tileMap) return;
     
-    // 从地图对象层加载树木
     const auto& objects = tileMap->getObjects();
-    float displayScale = (float)tileMap->getTileSize() / 32.0f;  // 32是源tile大小
+    float displayScale = (float)tileMap->getTileSize() / 32.0f;
     
     std::cout << "[Trees] Loading trees from " << objects.size() << " map objects..." << std::endl;
     
     for (const auto& obj : objects) {
         if (obj.gid <= 0) continue;
         
-        // ========================================
-        // 检查对象类型（从tsx文件动态读取）
-        // 支持多种方式识别树木：
-        //   1. type 属性 == "tree"
-        //   2. name 属性包含 "tree"
-        //   3. tileset 名称包含 "tree"
-        // ========================================
         std::string objType = obj.type;
         std::string objName = obj.name;
         
@@ -347,12 +461,10 @@ void GameState::initTrees() {
             objName = obj.tileProperty->name;
         }
         
-        // 判断是否为树木
         bool isTree = false;
         if (objType == "tree") {
             isTree = true;
         } else if (objName.find("tree") != std::string::npos) {
-            // name 包含 "tree"（如 tree1, apple_tree, cherry_tree）
             isTree = true;
         }
         
@@ -362,69 +474,75 @@ void GameState::initTrees() {
             continue;
         }
         
-        // 对象的y坐标是底部
         float x = obj.x * displayScale;
         float y = obj.y * displayScale;
-        
-        // 计算显示尺寸
         float width = obj.width * displayScale;
         float height = obj.height * displayScale;
         
         Tree* tree = nullptr;
         
-        // ========================================
-        // 使用动态属性创建树木（推荐方式）
-        // 不再硬编码 gid -> 树类型 的映射
-        // ========================================
         if (obj.tileProperty) {
             tree = treeManager->addTreeFromProperty(x, y, obj.tileProperty);
             std::cout << "[Trees] Created from TileProperty: " << obj.tileProperty->name 
                       << " HP=" << obj.tileProperty->hp << std::endl;
         } else {
-            // 后备方案：使用对象名称
             std::string treeType = obj.name.empty() ? "tree1" : obj.name;
             tree = treeManager->addTree(x, y, treeType);
             std::cout << "[Trees] Created from name: " << treeType << std::endl;
         }
         
         if (tree) {
-            // 设置正确的尺寸（与地图对象一致）
             tree->setSize(width, height);
             
-            // 普通树可以在成熟后变成果树
-            if (tree->getTreeType() == "tree1") {
-                tree->setCanTransform(true);
-            }
+            // 注意：不再自动设置 canTransform
+            // 如果需要树木变换功能，取消下面的注释
+            // if (tree->getTreeType() == "tree1") {
+            //     tree->setCanTransform(true);
+            // }
             
-            // 设置销毁回调
+            // ========================================
+            // 设置销毁回调 - 生成掉落物品和奖励
+            // ========================================
             tree->setOnDestroyed([this](Tree& t) {
-                // 树木被砍倒时的处理
+                // 使用递减概率计算掉落
                 auto drops = t.generateDrops();
-                for (const auto& drop : drops) {
-                    // 这里可以添加到玩家背包
-                    std::cout << "[Drops] Player gets: " << drop.first 
-                              << " x" << drop.second << std::endl;
-                    // 添加经验
-                    if (player) {
-                        player->getStats().addExp(10);
-                        player->getStats().addSkillExp(LifeSkill::Farming, 5);
-                    }
+                
+                if (!drops.empty() && droppedItemManager) {
+                    sf::Vector2f treePos = t.getPosition();
+                    // 在树的位置生成掉落物品
+                    droppedItemManager->spawnItems(drops, treePos.x, treePos.y - 20);
+                }
+                
+                // 添加经验和金币奖励（从 tsx 配置读取）
+                if (player) {
+                    int exp = t.getExpReward();
+                    int gold = t.getGoldReward();
+                    
+                    player->getStats().addExp(exp);
+                    player->getStats().addGold(gold);
+                    player->getStats().addSkillExp(LifeSkill::Farming, exp / 2);
+                    
+                    std::cout << "[Reward] +" << exp << " EXP, +" << gold << " Gold" << std::endl;
                 }
             });
             
-            // 设置果实采摘回调
+            // ========================================
+            // 设置果实采摘回调 - 生成果实掉落
+            // ========================================
             tree->setOnFruitHarvested([this](Tree& t) {
                 auto drops = t.generateFruitDrops();
-                for (const auto& drop : drops) {
-                    std::cout << "[Harvest] Player gets: " << drop.first 
-                              << " x" << drop.second << std::endl;
-                    if (player) {
-                        player->getStats().addExp(5);
-                    }
+                
+                if (!drops.empty() && droppedItemManager) {
+                    sf::Vector2f treePos = t.getPosition();
+                    droppedItemManager->spawnItems(drops, treePos.x, treePos.y - 20);
+                }
+                
+                if (player) {
+                    int exp = t.getExpReward() / 2;  // 采摘经验减半
+                    player->getStats().addExp(exp);
                 }
             });
             
-            // 设置生长阶段变化回调
             tree->setOnGrowthStageChanged([](Tree& t) {
                 std::cout << "[Tree] " << t.getName() << " changed to: " 
                           << t.getGrowthStageName() << std::endl;
@@ -432,8 +550,6 @@ void GameState::initTrees() {
         }
     }
     
-    // 清除TileMap中的对象，避免重复渲染
-    // TreeManager现在完全接管树木的渲染和管理
     tileMap->clearObjects();
     
     std::cout << "[Trees] Total trees loaded: " << treeManager->getTreeCount() << std::endl;
@@ -444,16 +560,11 @@ void GameState::handlePlayerAttack() {
     
     bool isCurrentlyAttacking = player->isAttacking();
     
-    // 只在攻击动画开始时检测一次
     if (isCurrentlyAttacking && !wasAttacking) {
-        // 获取攻击范围
         sf::Vector2f attackCenter = player->getAttackCenter();
         float attackRadius = player->getAttackRadius();
-        
-        // 计算伤害
         float damage = player->performAttack();
         
-        // 对范围内的树木造成伤害
         auto hitTrees = treeManager->damageTreesInRange(attackCenter, attackRadius, damage);
         
         if (!hitTrees.empty()) {
@@ -463,6 +574,46 @@ void GameState::handlePlayerAttack() {
     }
     
     wasAttacking = isCurrentlyAttacking;
+}
+
+void GameState::handleItemPickup() {
+    if (!player || !droppedItemManager) return;
+    
+    sf::Vector2f playerPos = player->getPosition();
+    
+    // 自动拾取范围内的物品
+    auto pickedUp = droppedItemManager->pickupItemsInRange(playerPos, PICKUP_RANGE);
+    
+    // 物品会通过回调自动添加到背包
+}
+
+bool GameState::onUseItem(const ItemStack& item, const ItemData* data) {
+    if (!player || !data) return false;
+    
+    // 处理消耗品效果
+    for (const auto& effect : data->effects) {
+        switch (effect.type) {
+            case EffectType::RestoreHealth:
+                player->getStats().heal(effect.value);
+                std::cout << "[Effect] Restored " << effect.value << " HP" << std::endl;
+                break;
+                
+            case EffectType::RestoreStamina:
+                player->getStats().restoreStamina(effect.value);
+                std::cout << "[Effect] Restored " << effect.value << " Stamina" << std::endl;
+                break;
+                
+            case EffectType::BuffAttack:
+                // TODO: 实现增益效果
+                std::cout << "[Effect] Attack buff +" << effect.value << std::endl;
+                break;
+                
+            default:
+                break;
+        }
+    }
+    
+    return true;
 }
 
 std::string GameState::getMapName(MapType mapType) const {
