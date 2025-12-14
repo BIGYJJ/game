@@ -93,11 +93,24 @@ void GameState::initItemSystem() {
     droppedItemManager->setOnItemPickup([this](const ItemStack& item) {
         // 添加到背包
         int added = inventory->addItemStack(item);
+        
+        // 添加到事件日志（只有成功拾取的物品）
+        if (added > 0 && eventLogPanel) {
+            const ItemData* data = ItemDatabase::getInstance().getItemData(item.itemId);
+            if (data) {
+                eventLogPanel->addItemObtained(data->name, added, item.itemId);
+            }
+        }
+        
         if (added < item.count) {
             // 背包已满，重新掉落未能拾取的物品
             if (player) {
                 sf::Vector2f pos = player->getPosition();
                 droppedItemManager->spawnItem(item.itemId, item.count - added, pos.x, pos.y);
+            }
+            // 警告背包已满
+            if (eventLogPanel) {
+                eventLogPanel->addWarning("背包已满！");
             }
         }
     });
@@ -159,6 +172,21 @@ void GameState::initUI(sf::RenderWindow& window) {
             droppedItemManager->spawnItem(item.itemId, item.count, playerPos.x + 30, playerPos.y);
         }
     });
+    
+    // ========================================
+    // 创建事件日志面板
+    // ========================================
+    eventLogPanel = std::make_unique<EventLogPanel>();
+    eventLogPanel->init();
+    
+    // 设置面板位置（屏幕右上角）
+    float logPanelWidth = 300.0f;
+    float logPanelHeight = 250.0f;
+    eventLogPanel->setSize(logPanelWidth, logPanelHeight);
+    eventLogPanel->setPosition(windowSize.x - logPanelWidth - 15.0f, 15.0f);
+    
+    // 添加欢迎消息
+    eventLogPanel->addMessage("欢迎来到像素农场！", EventType::System);
     
     std::cout << "[OK] UI initialized" << std::endl;
 }
@@ -241,7 +269,16 @@ void GameState::handleInput(const sf::Event& event) {
             // Debug: Add experience/gold for testing
             case sf::Keyboard::E:
                 if (player) {
+                    int oldLevel = player->getStats().getLevel();
                     player->getStats().addExp(50);
+                    int newLevel = player->getStats().getLevel();
+                    
+                    if (eventLogPanel) {
+                        eventLogPanel->addExpObtained(50, "测试");
+                        if (newLevel > oldLevel) {
+                            eventLogPanel->addLevelUp(newLevel);
+                        }
+                    }
                     std::cout << "[DEBUG] +50 EXP" << std::endl;
                 }
                 break;
@@ -249,6 +286,9 @@ void GameState::handleInput(const sf::Event& event) {
             case sf::Keyboard::G:
                 if (player) {
                     player->getStats().addGold(100);
+                    if (eventLogPanel) {
+                        eventLogPanel->addGoldObtained(100);
+                    }
                     std::cout << "[DEBUG] +100 Gold" << std::endl;
                 }
                 break;
@@ -258,6 +298,10 @@ void GameState::handleInput(const sf::Event& event) {
                 if (inventory) {
                     inventory->addItem("wood", 10);
                     inventory->addItem("cherry", 5);
+                    if (eventLogPanel) {
+                        eventLogPanel->addItemObtained("木材", 10, "wood");
+                        eventLogPanel->addItemObtained("樱桃", 5, "cherry");
+                    }
                     std::cout << "[DEBUG] Added test items" << std::endl;
                 }
                 break;
@@ -343,6 +387,9 @@ void GameState::update(float dt) {
     if (inventoryPanel) {
         inventoryPanel->update(dt);
     }
+    if (eventLogPanel) {
+        eventLogPanel->update(dt);
+    }
 }
 
 void GameState::render(sf::RenderWindow& window) {
@@ -401,6 +448,11 @@ void GameState::renderUI(sf::RenderWindow& window) {
     if (inventoryPanel) {
         inventoryPanel->render(window);
     }
+    
+    // Render event log panel (top-right)
+    if (eventLogPanel) {
+        eventLogPanel->render(window);
+    }
 }
 
 void GameState::switchMap(MapType newMap) {
@@ -437,6 +489,12 @@ void GameState::switchMap(MapType newMap) {
         
         std::cout << "[OK] Map switch complete" << std::endl;
         std::cout << "------------------------------------\n" << std::endl;
+        
+        // 添加地图切换提示到事件日志
+        if (eventLogPanel) {
+            std::string mapName = (newMap == MapType::Farm) ? "农场" : "森林";
+            eventLogPanel->addMessage("已进入 " + mapName + " 地图", EventType::System);
+        }
     }
 }
 
@@ -511,6 +569,16 @@ void GameState::initTrees() {
                     sf::Vector2f treePos = t.getPosition();
                     // 在树的位置生成掉落物品
                     droppedItemManager->spawnItems(drops, treePos.x, treePos.y - 20);
+                    
+                    // 添加掉落物品到事件日志
+                    if (eventLogPanel) {
+                        for (const auto& drop : drops) {
+                            const ItemData* data = ItemDatabase::getInstance().getItemData(drop.first);
+                            if (data) {
+                                eventLogPanel->addItemObtained(data->name, drop.second, drop.first);
+                            }
+                        }
+                    }
                 }
                 
                 // 添加经验和金币奖励（从 tsx 配置读取）
@@ -518,9 +586,27 @@ void GameState::initTrees() {
                     int exp = t.getExpReward();
                     int gold = t.getGoldReward();
                     
+                    // 检查是否升级
+                    int oldLevel = player->getStats().getLevel();
                     player->getStats().addExp(exp);
+                    int newLevel = player->getStats().getLevel();
+                    
                     player->getStats().addGold(gold);
                     player->getStats().addSkillExp(LifeSkill::Farming, exp / 2);
+                    
+                    // 添加到事件日志
+                    if (eventLogPanel) {
+                        eventLogPanel->addTreeChopped(t.getName());
+                        if (exp > 0) {
+                            eventLogPanel->addExpObtained(exp, "砍伐");
+                        }
+                        if (gold > 0) {
+                            eventLogPanel->addGoldObtained(gold);
+                        }
+                        if (newLevel > oldLevel) {
+                            eventLogPanel->addLevelUp(newLevel);
+                        }
+                    }
                     
                     std::cout << "[Reward] +" << exp << " EXP, +" << gold << " Gold" << std::endl;
                 }
@@ -535,17 +621,41 @@ void GameState::initTrees() {
                 if (!drops.empty() && droppedItemManager) {
                     sf::Vector2f treePos = t.getPosition();
                     droppedItemManager->spawnItems(drops, treePos.x, treePos.y - 20);
+                    
+                    // 添加到事件日志
+                    if (eventLogPanel) {
+                        for (const auto& drop : drops) {
+                            const ItemData* data = ItemDatabase::getInstance().getItemData(drop.first);
+                            if (data) {
+                                eventLogPanel->addFruitHarvested(data->name, drop.second);
+                            }
+                        }
+                    }
                 }
                 
                 if (player) {
                     int exp = t.getExpReward() / 2;  // 采摘经验减半
+                    int oldLevel = player->getStats().getLevel();
                     player->getStats().addExp(exp);
+                    int newLevel = player->getStats().getLevel();
+                    
+                    if (eventLogPanel && exp > 0) {
+                        eventLogPanel->addExpObtained(exp, "采摘");
+                        if (newLevel > oldLevel) {
+                            eventLogPanel->addLevelUp(newLevel);
+                        }
+                    }
                 }
             });
             
-            tree->setOnGrowthStageChanged([](Tree& t) {
+            tree->setOnGrowthStageChanged([this](Tree& t) {
                 std::cout << "[Tree] " << t.getName() << " changed to: " 
                           << t.getGrowthStageName() << std::endl;
+                
+                // 如果树木成熟，添加事件日志
+                if (eventLogPanel && t.getGrowthStageName() == "Mature") {
+                    eventLogPanel->addTreeMature(t.getName());
+                }
             });
         }
     }
@@ -595,16 +705,25 @@ bool GameState::onUseItem(const ItemStack& item, const ItemData* data) {
         switch (effect.type) {
             case EffectType::RestoreHealth:
                 player->getStats().heal(effect.value);
+                if (eventLogPanel) {
+                    eventLogPanel->addMessage("恢复 " + std::to_string((int)effect.value) + " 生命值", EventType::System);
+                }
                 std::cout << "[Effect] Restored " << effect.value << " HP" << std::endl;
                 break;
                 
             case EffectType::RestoreStamina:
                 player->getStats().restoreStamina(effect.value);
+                if (eventLogPanel) {
+                    eventLogPanel->addMessage("恢复 " + std::to_string((int)effect.value) + " 体力", EventType::System);
+                }
                 std::cout << "[Effect] Restored " << effect.value << " Stamina" << std::endl;
                 break;
                 
             case EffectType::BuffAttack:
                 // TODO: 实现增益效果
+                if (eventLogPanel) {
+                    eventLogPanel->addMessage("攻击力提升 +" + std::to_string((int)effect.value), EventType::Combat);
+                }
                 std::cout << "[Effect] Attack buff +" << effect.value << std::endl;
                 break;
                 

@@ -279,7 +279,7 @@ void InventoryPanel::render(sf::RenderWindow& window) {
     if (fontLoaded) {
         // 上一页
         sf::RectangleShape prevBtn(sf::Vector2f(30, 25));
-        prevBtn.setPosition(panelPosition.x + 50, bottomY);
+        prevBtn.setPosition(panelPosition.x + 100, bottomY);
         prevBtn.setFillColor(currentPage > 0 ? sf::Color(80, 80, 100) : sf::Color(50, 50, 60));
         prevBtn.setOutlineThickness(1);
         prevBtn.setOutlineColor(sf::Color::White);
@@ -290,7 +290,7 @@ void InventoryPanel::render(sf::RenderWindow& window) {
         prevText.setString("<");
         prevText.setCharacterSize(16);
         prevText.setFillColor(sf::Color::White);
-        prevText.setPosition(panelPosition.x + 60, bottomY + 2);
+        prevText.setPosition(panelPosition.x + 110, bottomY + 2);
         window.draw(prevText);
         
         // 页码

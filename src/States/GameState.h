@@ -7,6 +7,7 @@
 #include "../Systems/TimeSystem.h"
 #include "../UI/StatsPanel.h"
 #include "../UI/InventoryPanel.h"
+#include "../UI/EventLogPanel.h"
 #include "../Items/Item.h"
 #include "../Items/Inventory.h"
 #include "../Items/DroppedItem.h"
@@ -79,6 +80,7 @@ private:
     // UI
     std::unique_ptr<StatsPanel> statsPanel;
     std::unique_ptr<InventoryPanel> inventoryPanel;
+    std::unique_ptr<EventLogPanel> eventLogPanel;
     
     // Current map type
     MapType currentMap;
