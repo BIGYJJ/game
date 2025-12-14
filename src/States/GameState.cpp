@@ -328,88 +328,107 @@ void GameState::initTrees() {
     std::cout << "[Trees] Loading trees from " << objects.size() << " map objects..." << std::endl;
     
     for (const auto& obj : objects) {
-        if (obj.gid > 0) {
-            // 对象的y坐标是底部
-            float x = obj.x * displayScale;
-            float y = obj.y * displayScale;
+        if (obj.gid <= 0) continue;
+        
+        // ========================================
+        // 检查对象类型（从tsx文件动态读取）
+        // 支持多种方式识别树木：
+        //   1. type 属性 == "tree"
+        //   2. name 属性包含 "tree"
+        //   3. tileset 名称包含 "tree"
+        // ========================================
+        std::string objType = obj.type;
+        std::string objName = obj.name;
+        
+        if (objType.empty() && obj.tileProperty) {
+            objType = obj.tileProperty->type;
+        }
+        if (objName.empty() && obj.tileProperty) {
+            objName = obj.tileProperty->name;
+        }
+        
+        // 判断是否为树木
+        bool isTree = false;
+        if (objType == "tree") {
+            isTree = true;
+        } else if (objName.find("tree") != std::string::npos) {
+            // name 包含 "tree"（如 tree1, apple_tree, cherry_tree）
+            isTree = true;
+        }
+        
+        if (!isTree) {
+            std::cout << "[Objects] Skipping non-tree object: " << objName 
+                      << " (type=" << objType << ")" << std::endl;
+            continue;
+        }
+        
+        // 对象的y坐标是底部
+        float x = obj.x * displayScale;
+        float y = obj.y * displayScale;
+        
+        // 计算显示尺寸
+        float width = obj.width * displayScale;
+        float height = obj.height * displayScale;
+        
+        Tree* tree = nullptr;
+        
+        // ========================================
+        // 使用动态属性创建树木（推荐方式）
+        // 不再硬编码 gid -> 树类型 的映射
+        // ========================================
+        if (obj.tileProperty) {
+            tree = treeManager->addTreeFromProperty(x, y, obj.tileProperty);
+            std::cout << "[Trees] Created from TileProperty: " << obj.tileProperty->name 
+                      << " HP=" << obj.tileProperty->hp << std::endl;
+        } else {
+            // 后备方案：使用对象名称
+            std::string treeType = obj.name.empty() ? "tree1" : obj.name;
+            tree = treeManager->addTree(x, y, treeType);
+            std::cout << "[Trees] Created from name: " << treeType << std::endl;
+        }
+        
+        if (tree) {
+            // 设置正确的尺寸（与地图对象一致）
+            tree->setSize(width, height);
             
-            // 计算显示尺寸
-            float width = obj.width * displayScale;
-            float height = obj.height * displayScale;
-            
-            // ========================================
-            // 根据 gid 判断树类型（关键修复！）
-            // tree.tsx: firstgid=129
-            //   - id=0 (gid=129) -> tree1 (普通树)
-            //   - id=1 (gid=130) -> apple (苹果树)
-            // ========================================
-            std::string treeType;
-            float hp = 30.0f;
-            
-            if (obj.gid == 129) {
-                treeType = "tree1";  // 普通树
-                hp = 30.0f;
-                std::cout << "[Trees] gid=129 -> tree1 (普通树)" << std::endl;
-            } else if (obj.gid == 130) {
-                treeType = "apple";  // 苹果树
-                hp = 40.0f;
-                std::cout << "[Trees] gid=130 -> apple (苹果树)" << std::endl;
-            } else {
-                // 其他情况：尝试用对象名称，否则默认为普通树
-                treeType = obj.name.empty() ? "tree1" : obj.name;
-                hp = 30.0f;
-                std::cout << "[Trees] gid=" << obj.gid << " -> " << treeType << std::endl;
+            // 普通树可以在成熟后变成果树
+            if (tree->getTreeType() == "tree1") {
+                tree->setCanTransform(true);
             }
             
-            Tree* tree = treeManager->addTree(x, y, treeType);
-            if (tree) {
-                // 设置正确的尺寸（与地图对象一致）
-                tree->setSize(width, height);
-                
-                // 设置树木属性
-                tree->setMaxHealth(hp);
-                tree->setHealth(hp);
-                tree->setDefense(5.0f);
-                
-                // 普通树可以在成熟后变成果树
-                if (treeType == "tree1") {
-                    tree->setCanTransform(true);
+            // 设置销毁回调
+            tree->setOnDestroyed([this](Tree& t) {
+                // 树木被砍倒时的处理
+                auto drops = t.generateDrops();
+                for (const auto& drop : drops) {
+                    // 这里可以添加到玩家背包
+                    std::cout << "[Drops] Player gets: " << drop.first 
+                              << " x" << drop.second << std::endl;
+                    // 添加经验
+                    if (player) {
+                        player->getStats().addExp(10);
+                        player->getStats().addSkillExp(LifeSkill::Farming, 5);
+                    }
                 }
-                
-                // 设置销毁回调
-                tree->setOnDestroyed([this](Tree& t) {
-                    // 树木被砍倒时的处理
-                    auto drops = t.generateDrops();
-                    for (const auto& drop : drops) {
-                        // 这里可以添加到玩家背包
-                        std::cout << "[Drops] Player gets: " << drop.first 
-                                  << " x" << drop.second << std::endl;
-                        // 添加经验
-                        if (player) {
-                            player->getStats().addExp(10);
-                            player->getStats().addSkillExp(LifeSkill::Farming, 5);
-                        }
+            });
+            
+            // 设置果实采摘回调
+            tree->setOnFruitHarvested([this](Tree& t) {
+                auto drops = t.generateFruitDrops();
+                for (const auto& drop : drops) {
+                    std::cout << "[Harvest] Player gets: " << drop.first 
+                              << " x" << drop.second << std::endl;
+                    if (player) {
+                        player->getStats().addExp(5);
                     }
-                });
-                
-                // 设置果实采摘回调
-                tree->setOnFruitHarvested([this](Tree& t) {
-                    auto drops = t.generateFruitDrops();
-                    for (const auto& drop : drops) {
-                        std::cout << "[Harvest] Player gets: " << drop.first 
-                                  << " x" << drop.second << std::endl;
-                        if (player) {
-                            player->getStats().addExp(5);
-                        }
-                    }
-                });
-                
-                // 设置生长阶段变化回调
-                tree->setOnGrowthStageChanged([](Tree& t) {
-                    std::cout << "[Tree] " << t.getName() << " changed to: " 
-                              << t.getGrowthStageName() << std::endl;
-                });
-            }
+                }
+            });
+            
+            // 设置生长阶段变化回调
+            tree->setOnGrowthStageChanged([](Tree& t) {
+                std::cout << "[Tree] " << t.getName() << " changed to: " 
+                          << t.getGrowthStageName() << std::endl;
+            });
         }
     }
     

@@ -686,69 +686,190 @@ bool TileMap::loadTsxFile(const std::string& tsxPath, TilesetInfo& ts) {
     ts.tileHeight = getXmlAttrInt(xml, "tileheight");
     ts.columns = getXmlAttrInt(xml, "columns");
     ts.tileCount = getXmlAttrInt(xml, "tilecount");
+    ts.name = getXmlAttrStr(xml, "name");
     
+    std::cout << "     Tileset name: " << ts.name << std::endl;
     std::cout << "     Tile: " << ts.tileWidth << "x" << ts.tileHeight 
               << ", columns: " << ts.columns << ", count: " << ts.tileCount << std::endl;
     
-    // Check if this is a "collection of images" tileset (columns == 0)
-    if (ts.columns == 0) {
-        std::cout << "     [INFO] Collection of images tileset detected" << std::endl;
+    // ========================================
+    // 解析所有 <tile> 元素及其属性
+    // ========================================
+    size_t searchPos = 0;
+    while (true) {
+        size_t tilePos = xml.find("<tile", searchPos);
+        if (tilePos == std::string::npos) break;
         
-        // Find <image> tag inside <tile> tag
-        size_t tilePos = xml.find("<tile");
-        if (tilePos != std::string::npos) {
-            size_t imgPos = xml.find("<image", tilePos);
-            if (imgPos != std::string::npos) {
-                size_t imgEnd = xml.find("/>", imgPos);
-                if (imgEnd == std::string::npos) imgEnd = xml.find(">", imgPos);
-                std::string imgTag = xml.substr(imgPos, imgEnd - imgPos);
+        // 找到这个tile的结束位置
+        size_t tileEnd = xml.find("</tile>", tilePos);
+        if (tileEnd == std::string::npos) {
+            // 可能是自闭合标签
+            tileEnd = xml.find("/>", tilePos);
+            if (tileEnd == std::string::npos) break;
+            tileEnd += 2;
+        } else {
+            tileEnd += 7; // length of "</tile>"
+        }
+        
+        std::string tileXml = xml.substr(tilePos, tileEnd - tilePos);
+        
+        TileProperty prop;
+        prop.localId = getXmlAttrInt(tileXml, "id");
+        
+        // 解析 <properties> 中的所有属性
+        size_t propsStart = tileXml.find("<properties>");
+        size_t propsEnd = tileXml.find("</properties>");
+        
+        if (propsStart != std::string::npos && propsEnd != std::string::npos) {
+            std::string propsXml = tileXml.substr(propsStart, propsEnd - propsStart);
+            
+            // 查找所有 <property> 元素
+            size_t propPos = 0;
+            while (true) {
+                propPos = propsXml.find("<property", propPos);
+                if (propPos == std::string::npos) break;
                 
-                std::string imgSource = getXmlAttrStr(imgTag, "source");
-                if (!imgSource.empty()) {
-                    std::string imgFullPath = normalizePath(tsxDir, imgSource);
-                    std::cout << "     Image path: " << imgFullPath << std::endl;
-                    
-                    if (ts.texture.loadFromFile(imgFullPath)) {
-                        ts.loaded = true;
-                        ts.imagePath = imgFullPath;
-                        ts.columns = 1;  // Treat as single column for calculation
-                        return true;
-                    }
-                    
-                    // Try alternative paths
-                    std::vector<std::string> altPaths = {
-                        tsxDir + imgSource,
-                        tmjBasePath + "../game_source/tree/tree.png",
-                        "assets/game_source/tree/tree.png",
-                    };
-                    
-                    std::cout << "     Trying alternative paths..." << std::endl;
-                    for (const auto& altPath : altPaths) {
-                        std::cout << "       Trying: " << altPath << std::endl;
-                        if (ts.texture.loadFromFile(altPath)) {
-                            ts.loaded = true;
-                            ts.imagePath = altPath;
-                            ts.columns = 1;
-                            std::cout << "       [OK] Found!" << std::endl;
-                            return true;
+                size_t propEnd = propsXml.find("/>", propPos);
+                if (propEnd == std::string::npos) propEnd = propsXml.find(">", propPos);
+                
+                std::string propTag = propsXml.substr(propPos, propEnd - propPos);
+                
+                std::string propName = getXmlAttrStr(propTag, "name");
+                std::string propValue = getXmlAttrStr(propTag, "value");
+                
+                // 解析各种属性
+                if (propName == "name") {
+                    prop.name = propValue;
+                } else if (propName == "type") {
+                    prop.type = propValue;
+                } else if (propName == "HP") {
+                    prop.hp = std::stoi(propValue);
+                } else if (propName == "defense") {
+                    prop.defense = std::stoi(propValue);
+                } else if (propName == "drop_max") {
+                    prop.dropMax = (int)std::stof(propValue);
+                } else if (propName == "drop_type") {
+                    // 解析掉落类型列表，格式: "\"wood\",\"seed\",\"stick\""
+                    std::string dropStr = propValue;
+                    size_t pos = 0;
+                    while (pos < dropStr.length()) {
+                        size_t start = dropStr.find("\"", pos);
+                        if (start == std::string::npos) break;
+                        size_t end = dropStr.find("\"", start + 1);
+                        if (end == std::string::npos) break;
+                        std::string item = dropStr.substr(start + 1, end - start - 1);
+                        if (!item.empty()) {
+                            prop.dropTypes.push_back(item);
                         }
+                        pos = end + 1;
                     }
+                } else if (propName.find("drop") != std::string::npos && 
+                           propName.find("Probability") != std::string::npos) {
+                    // dropX_Probability
+                    float prob = std::stof(propValue);
+                    prop.dropProbabilities.push_back(prob);
                 }
+                
+                propPos = propEnd;
             }
         }
         
-        std::cout << "     [FAILED] Could not load collection tileset" << std::endl;
-        return false;
+        // 解析这个tile的 <image> 标签
+        size_t imgPos = tileXml.find("<image");
+        if (imgPos != std::string::npos) {
+            size_t imgEnd = tileXml.find("/>", imgPos);
+            if (imgEnd == std::string::npos) imgEnd = tileXml.find(">", imgPos);
+            std::string imgTag = tileXml.substr(imgPos, imgEnd - imgPos);
+            prop.imagePath = getXmlAttrStr(imgTag, "source");
+        }
+        
+        // 输出调试信息
+        if (!prop.name.empty()) {
+            std::cout << "     [Tile " << prop.localId << "] name=" << prop.name 
+                      << ", type=" << prop.type << ", HP=" << prop.hp 
+                      << ", defense=" << prop.defense << std::endl;
+            if (!prop.dropTypes.empty()) {
+                std::cout << "       drops: ";
+                for (size_t i = 0; i < prop.dropTypes.size(); i++) {
+                    std::cout << prop.dropTypes[i];
+                    if (i < prop.dropProbabilities.size()) {
+                        std::cout << "(" << (int)(prop.dropProbabilities[i] * 100) << "%)";
+                    }
+                    if (i < prop.dropTypes.size() - 1) std::cout << ", ";
+                }
+                std::cout << std::endl;
+            }
+        }
+        
+        ts.tileProperties.push_back(prop);
+        searchPos = tileEnd;
     }
     
-    // Standard spritesheet tileset - find top-level <image> tag
+    std::cout << "     Parsed " << ts.tileProperties.size() << " tile properties" << std::endl;
+    
+    // ========================================
+    // 处理 "collection of images" tileset (columns == 0)
+    // 每个 tile 有独立的图片文件
+    // ========================================
+    if (ts.columns == 0) {
+        std::cout << "     [INFO] Collection of images tileset detected" << std::endl;
+        
+        // 为每个 tile 加载独立的贴图
+        bool anyLoaded = false;
+        for (auto& prop : ts.tileProperties) {
+            if (prop.imagePath.empty()) continue;
+            
+            std::string imgFullPath = normalizePath(tsxDir, prop.imagePath);
+            
+            // 尝试加载
+            if (prop.texture.loadFromFile(imgFullPath)) {
+                prop.hasTexture = true;
+                anyLoaded = true;
+                std::cout << "     [Tile " << prop.localId << "] Loaded: " << imgFullPath << std::endl;
+                continue;
+            }
+            
+            // 尝试替代路径
+            std::vector<std::string> altPaths = {
+                tsxDir + prop.imagePath,
+                tmjBasePath + "../game_source/" + prop.imagePath,
+                "assets/game_source/" + prop.imagePath,
+            };
+            
+            for (const auto& altPath : altPaths) {
+                if (prop.texture.loadFromFile(altPath)) {
+                    prop.hasTexture = true;
+                    anyLoaded = true;
+                    std::cout << "     [Tile " << prop.localId << "] Loaded: " << altPath << std::endl;
+                    break;
+                }
+            }
+            
+            if (!prop.hasTexture) {
+                std::cout << "     [Tile " << prop.localId << "] FAILED to load texture" << std::endl;
+            }
+        }
+        
+        // 使用第一个 tile 的贴图作为 tileset 的默认贴图（用于向后兼容）
+        if (!ts.tileProperties.empty() && ts.tileProperties[0].hasTexture) {
+            ts.texture = ts.tileProperties[0].texture;
+            ts.imagePath = ts.tileProperties[0].imagePath;
+        }
+        
+        ts.loaded = anyLoaded;
+        ts.columns = 1;  // 标记为 collection 类型
+        return anyLoaded;
+    }
+    
+    // ========================================
+    // Standard spritesheet tileset
+    // ========================================
     size_t imgPos = xml.find("<image");
     if (imgPos == std::string::npos) {
         std::cout << "     <image> tag not found" << std::endl;
         return false;
     }
     
-    // Get image source attribute
     size_t imgEnd = xml.find(">", imgPos);
     if (imgEnd == std::string::npos) imgEnd = xml.find("/>", imgPos);
     std::string imgTag = xml.substr(imgPos, imgEnd - imgPos);
@@ -759,32 +880,27 @@ bool TileMap::loadTsxFile(const std::string& tsxPath, TilesetInfo& ts) {
         return false;
     }
     
-    // Build full image path (relative to .tsx file)
     std::string imgFullPath = normalizePath(tsxDir, imgSource);
     std::cout << "     Image path: " << imgFullPath << std::endl;
     
-    // Load texture
     if (ts.texture.loadFromFile(imgFullPath)) {
         ts.loaded = true;
         ts.imagePath = imgFullPath;
         return true;
     }
     
-    // If failed, try alternative paths
+    // Try alternative paths
     std::vector<std::string> altPaths = {
-        tsxDir + imgSource,                          // Direct concatenation
-        tmjBasePath + imgSource,                     // Relative to .tmj
-        "assets/" + imgSource,                       // Common asset directory
-        "assets/map/" + imgSource,                   // Map subdirectory
+        tsxDir + imgSource,
+        tmjBasePath + imgSource,
+        "assets/" + imgSource,
+        "assets/map/" + imgSource,
     };
     
-    std::cout << "     Trying alternative paths..." << std::endl;
     for (const auto& altPath : altPaths) {
-        std::cout << "       Trying: " << altPath << std::endl;
         if (ts.texture.loadFromFile(altPath)) {
             ts.loaded = true;
             ts.imagePath = altPath;
-            std::cout << "       [OK] Found!" << std::endl;
             return true;
         }
     }
@@ -860,6 +976,7 @@ void TileMap::parseObjectGroups(const std::string& json) {
             obj.height = getJsonFloat(objJson, "height");
             obj.name = getJsonString(objJson, "name");
             obj.type = getJsonString(objJson, "type");
+            obj.tileProperty = nullptr;
             
             if (obj.gid <= 0) continue;
             
@@ -874,7 +991,7 @@ void TileMap::parseObjectGroups(const std::string& json) {
             
             if (tsIndex >= 0) {
                 obj.textureIndex = tsIndex;
-                const TilesetInfo& ts = tilesets[tsIndex];
+                TilesetInfo& ts = tilesets[tsIndex];
                 
                 int localId = obj.gid - ts.firstGid;
                 int cols = ts.columns > 0 ? ts.columns : 1;
@@ -889,17 +1006,35 @@ void TileMap::parseObjectGroups(const std::string& json) {
                     obj.texCoords.y = (localId / cols) * ts.tileHeight;
                 }
                 
+                // ========================================
+                // 关联 tile 属性（从 tsx 文件读取）
+                // ========================================
+                obj.tileProperty = ts.getTileProperty(localId);
+                
+                if (obj.tileProperty) {
+                    // 如果对象没有设置name/type，从tile属性继承
+                    if (obj.name.empty()) obj.name = obj.tileProperty->name;
+                    if (obj.type.empty()) obj.type = obj.tileProperty->type;
+                    
+                    std::cout << "[OK] Object: gid=" << obj.gid 
+                              << " (localId=" << localId << ")"
+                              << " -> " << obj.tileProperty->name
+                              << " [" << obj.tileProperty->type << "]"
+                              << " HP=" << obj.tileProperty->hp << std::endl;
+                } else {
+                    std::cout << "[OK] Object: gid=" << obj.gid 
+                              << " at (" << obj.x << ", " << obj.y << ")"
+                              << " (no tile properties)" << std::endl;
+                }
+                
                 objects.push_back(obj);
-                std::cout << "[OK] Object: gid=" << obj.gid 
-                          << " at (" << obj.x << ", " << obj.y << ")"
-                          << " size: " << obj.width << "x" << obj.height << std::endl;
             } else {
                 std::cerr << "[WARNING] No tileset found for object gid=" << obj.gid << std::endl;
             }
         }
     }
     
-    std::cout << "[OK] Total1 " << objects.size() << " map object(s) loaded" << std::endl;
+    std::cout << "[OK] Total " << objects.size() << " map object(s) loaded" << std::endl;
 }
 
 // ============================================================================
@@ -962,4 +1097,19 @@ void TileMap::initializeFromLayers() {
     if (totalTilesPlaced == 0) {
         std::cerr << "[WARNING] No tiles placed! Check tileset paths1." << std::endl;
     }
+}
+
+// ============================================================================
+// 根据 gid 获取 tile 属性
+// ============================================================================
+
+const TileProperty* TileMap::getTilePropertyByGid(int gid) const {
+    // 查找对应的 tileset
+    for (int t = (int)tilesets.size() - 1; t >= 0; t--) {
+        if (gid >= tilesets[t].firstGid) {
+            int localId = gid - tilesets[t].firstGid;
+            return tilesets[t].getTileProperty(localId);
+        }
+    }
+    return nullptr;
 }

@@ -57,6 +57,13 @@ public:
     // 初始化
     // ========================================
     void init(float x, float y, const std::string& treeType);
+    
+    // 从地图对象的TileProperty动态初始化（推荐使用）
+    void initFromTileProperty(float x, float y, const struct TileProperty* prop);
+    
+    // 设置贴图（用于collection of images类型的tileset）
+    void setTextureFromProperty(const struct TileProperty* prop);
+    
     bool loadTextures(const std::string& basePath);
     
     // ========================================
@@ -237,6 +244,10 @@ public:
     // 树木管理
     // ========================================
     Tree* addTree(float x, float y, const std::string& type = "oak");
+    
+    // 从TileProperty动态创建树（推荐使用）
+    Tree* addTreeFromProperty(float x, float y, const struct TileProperty* prop);
+    
     void removeTree(Tree* tree);
     void clearAllTrees();
     

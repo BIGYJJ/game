@@ -86,6 +86,99 @@ void Tree::init(float x, float y, const std::string& type) {
     updateSprite();
 }
 
+// ============================================================================
+// 从 TileProperty 动态初始化（推荐使用）
+// ============================================================================
+
+void Tree::initFromTileProperty(float x, float y, const TileProperty* prop) {
+    position = sf::Vector2f(x, y);
+    
+    if (!prop) {
+        // 如果没有属性信息，使用默认值
+        treeType = "tree1";
+        name = "树木";
+        maxHealth = 30.0f;
+        defense = 5.0f;
+        size = sf::Vector2f(64, 64);
+        health = maxHealth;
+        updateSprite();
+        return;
+    }
+    
+    // 从 TileProperty 设置属性
+    treeType = prop->name;
+    name = prop->name;  // 可以后续添加中文名映射
+    maxHealth = (float)prop->hp;
+    defense = (float)prop->defense;
+    size = sf::Vector2f(64, 64);  // 默认尺寸，可从外部设置
+    
+    // 清空并设置掉落物品
+    dropItems.clear();
+    fruitDropItems.clear();
+    
+    // 根据 dropTypes 和 dropProbabilities 设置掉落
+    for (size_t i = 0; i < prop->dropTypes.size(); i++) {
+        const std::string& itemId = prop->dropTypes[i];
+        float prob = (i < prop->dropProbabilities.size()) ? prop->dropProbabilities[i] : 0.5f;
+        
+        // 创建中文名映射
+        std::string itemName = itemId;
+        if (itemId == "wood") itemName = "木材";
+        else if (itemId == "seed") itemName = "种子";
+        else if (itemId == "stick") itemName = "树枝";
+        else if (itemId == "apple") itemName = "苹果";
+        else if (itemId == "cherry") itemName = "樱桃";
+        
+        // 判断是砍伐掉落还是果实掉落
+        if (itemId == "apple" || itemId == "cherry" || 
+            itemId.find("fruit") != std::string::npos) {
+            fruitDropItems.push_back(DropItem(itemId, itemName, 1, 3, prob));
+        } else {
+            dropItems.push_back(DropItem(itemId, itemName, 1, 3, prob));
+        }
+    }
+    
+    // 设置中文显示名
+    if (treeType == "tree1") {
+        name = "橡树";
+        canTransform = true;
+        hasTransformed = false;
+    } else if (treeType == "apple_tree") {
+        name = "苹果树";
+        canTransform = false;
+    } else if (treeType == "cherry_tree") {
+        name = "樱桃树";
+        canTransform = false;
+    } else {
+        // 未知类型，使用原始名称
+        canTransform = false;
+    }
+    
+    health = maxHealth;
+    
+    std::cout << "[Tree] Initialized from TileProperty: " << name 
+              << " HP=" << maxHealth << " DEF=" << defense 
+              << " drops=" << dropItems.size() 
+              << " fruits=" << fruitDropItems.size() << std::endl;
+    
+    updateSprite();
+}
+
+void Tree::setTextureFromProperty(const TileProperty* prop) {
+    if (!prop || !prop->hasTexture) return;
+    
+    // 复制贴图
+    textureMature = prop->texture;
+    textureSeedling = textureMature;
+    textureGrowing = textureMature;
+    textureFruiting = textureMature;
+    
+    texturesLoaded = true;
+    updateSprite();
+    
+    std::cout << "[Tree] Texture set from TileProperty for: " << treeType << std::endl;
+}
+
 bool Tree::loadTextures(const std::string& basePath) {
     std::cout << "[Tree] loadTextures called for type: " << treeType 
               << " basePath: " << basePath << std::endl;
@@ -621,12 +714,18 @@ void TreeManager::renderTooltip(sf::RenderWindow& window, Tree* tree) {
     
     // 获取鼠标屏幕位置
     sf::Vector2i mouseScreenPos = sf::Mouse::getPosition(window);
-    float tooltipX = mouseScreenPos.x + 15.0f;
-    float tooltipY = mouseScreenPos.y + 15.0f;
+    float tooltipX = mouseScreenPos.x + 20.0f;
+    float tooltipY = mouseScreenPos.y + 20.0f;
     
     // 构建提示内容
     std::vector<std::wstring> lines;
     lines.push_back(std::wstring(tree->getName().begin(), tree->getName().end()));
+    
+    // 类型
+    std::wstring typeLine = L"类型: ";
+    std::string treeType = tree->getTreeType();
+    typeLine += std::wstring(treeType.begin(), treeType.end());
+    lines.push_back(typeLine);
     
     // 生长状态
     std::wstring stageLine = L"状态: ";
@@ -634,43 +733,57 @@ void TreeManager::renderTooltip(sf::RenderWindow& window, Tree* tree) {
     stageLine += std::wstring(stageName.begin(), stageName.end());
     lines.push_back(stageLine);
     
+    // 空行用于分隔
+    lines.push_back(L"");
+    
     // 生命值
     std::wstringstream hpStream;
-    hpStream << L"生命: " << (int)tree->getHealth() << L"/" << (int)tree->getMaxHealth();
+    hpStream << L"生命值: " << (int)tree->getHealth() << L" / " << (int)tree->getMaxHealth();
     lines.push_back(hpStream.str());
     
     // 防御
     std::wstringstream defStream;
-    defStream << L"防御: " << (int)tree->getDefense();
+    defStream << L"防御力: " << (int)tree->getDefense();
     lines.push_back(defStream.str());
     
-    // 掉落物品
-    lines.push_back(L"掉落:");
-    for (const auto& item : tree->getDropItems()) {
-        std::wstringstream itemStream;
-        itemStream << L"  " << std::wstring(item.name.begin(), item.name.end());
-        itemStream << L" x" << item.minCount << L"-" << item.maxCount;
-        lines.push_back(itemStream.str());
-    }
+    // 空行用于分隔
+    lines.push_back(L"");
     
-    // 果实
-    if (tree->hasFruit()) {
-        lines.push_back(L"果实:");
-        for (const auto& item : tree->getFruitDropItems()) {
+    // 掉落物品
+    if (!tree->getDropItems().empty()) {
+        lines.push_back(L"== 砍伐掉落 ==");
+        for (const auto& item : tree->getDropItems()) {
             std::wstringstream itemStream;
-            itemStream << L"  " << std::wstring(item.name.begin(), item.name.end());
+            itemStream << L"  • " << std::wstring(item.name.begin(), item.name.end());
+            itemStream << L" x" << item.minCount << L"-" << item.maxCount;
+            itemStream << L" (" << (int)(item.dropChance * 100) << L"%)";
             lines.push_back(itemStream.str());
         }
     }
     
-    // 计算提示框尺寸
-    float lineHeight = 22.0f;
-    float padding = 10.0f;
+    // 果实
+    if (!tree->getFruitDropItems().empty()) {
+        lines.push_back(L"");
+        lines.push_back(L"== 果实 ==");
+        for (const auto& item : tree->getFruitDropItems()) {
+            std::wstringstream itemStream;
+            itemStream << L"  • " << std::wstring(item.name.begin(), item.name.end());
+            if (tree->hasFruit()) {
+                itemStream << L" [可采摘]";
+            }
+            lines.push_back(itemStream.str());
+        }
+    }
+    
+    // 计算提示框尺寸 - 增大尺寸
+    float lineHeight = 28.0f;          // 增大行高
+    float padding = 16.0f;             // 增大内边距
+    float minWidth = 220.0f;           // 最小宽度
     float maxWidth = 0.0f;
     
     sf::Text measureText;
     measureText.setFont(font);
-    measureText.setCharacterSize(16);
+    measureText.setCharacterSize(18);  // 增大字体用于测量
     
     for (const auto& line : lines) {
         measureText.setString(line);
@@ -678,65 +791,97 @@ void TreeManager::renderTooltip(sf::RenderWindow& window, Tree* tree) {
         if (width > maxWidth) maxWidth = width;
     }
     
-    float tooltipWidth = maxWidth + padding * 2;
-    float tooltipHeight = lines.size() * lineHeight + padding * 2;
+    float tooltipWidth = std::max(minWidth, maxWidth + padding * 2);
+    float tooltipHeight = lines.size() * lineHeight + padding * 2 + 20;  // 额外空间给血条
     
     // 确保不超出屏幕
     sf::Vector2u windowSize = window.getSize();
     if (tooltipX + tooltipWidth > windowSize.x) {
-        tooltipX = windowSize.x - tooltipWidth - 5;
+        tooltipX = windowSize.x - tooltipWidth - 10;
     }
     if (tooltipY + tooltipHeight > windowSize.y) {
-        tooltipY = windowSize.y - tooltipHeight - 5;
+        tooltipY = windowSize.y - tooltipHeight - 10;
     }
     
-    // 绘制背景
+    // 绘制背景 - 更好看的样式
     sf::RectangleShape bg(sf::Vector2f(tooltipWidth, tooltipHeight));
     bg.setPosition(tooltipX, tooltipY);
-    bg.setFillColor(sf::Color(20, 20, 30, 230));
-    bg.setOutlineThickness(2.0f);
-    bg.setOutlineColor(sf::Color(100, 80, 60));
+    bg.setFillColor(sf::Color(25, 25, 35, 240));
+    bg.setOutlineThickness(3.0f);
+    bg.setOutlineColor(sf::Color(139, 90, 43));  // 木质边框色
     window.draw(bg);
+    
+    // 绘制标题背景条
+    sf::RectangleShape titleBg(sf::Vector2f(tooltipWidth - 6, lineHeight + 4));
+    titleBg.setPosition(tooltipX + 3, tooltipY + 3);
+    titleBg.setFillColor(sf::Color(60, 45, 30, 200));
+    window.draw(titleBg);
     
     // 绘制文字
     sf::Text text;
     text.setFont(font);
-    text.setCharacterSize(16);
     
     float y = tooltipY + padding;
     for (size_t i = 0; i < lines.size(); i++) {
+        if (lines[i].empty()) {
+            y += lineHeight * 0.3f;  // 空行只占部分高度
+            continue;
+        }
+        
         text.setString(lines[i]);
         text.setPosition(tooltipX + padding, y);
         
-        // 标题用金色
+        // 标题用金色大字
         if (i == 0) {
             text.setFillColor(sf::Color(255, 215, 0));
-            text.setCharacterSize(18);
-        } else {
-            text.setFillColor(sf::Color(220, 220, 220));
+            text.setCharacterSize(22);
+            text.setStyle(sf::Text::Bold);
+        }
+        // 分隔符用特殊颜色
+        else if (lines[i].find(L"==") != std::wstring::npos) {
+            text.setFillColor(sf::Color(180, 140, 100));
             text.setCharacterSize(16);
+            text.setStyle(sf::Text::Bold);
+        }
+        // 普通文字
+        else {
+            text.setFillColor(sf::Color(230, 230, 230));
+            text.setCharacterSize(18);
+            text.setStyle(sf::Text::Regular);
         }
         
         window.draw(text);
         y += lineHeight;
     }
     
-    // 绘制血条
+    // 绘制血条 - 增大尺寸
     float barX = tooltipX + padding;
-    float barY = tooltipY + padding + lineHeight * 2.5f;
+    float barY = tooltipY + tooltipHeight - padding - 14;
     float barWidth = tooltipWidth - padding * 2;
-    float barHeight = 8.0f;
+    float barHeight = 12.0f;
     
-    // 背景
+    // 血条背景
     sf::RectangleShape barBg(sf::Vector2f(barWidth, barHeight));
     barBg.setPosition(barX, barY);
-    barBg.setFillColor(sf::Color(40, 40, 40));
+    barBg.setFillColor(sf::Color(50, 50, 50));
+    barBg.setOutlineThickness(1.0f);
+    barBg.setOutlineColor(sf::Color(80, 80, 80));
     window.draw(barBg);
     
-    // 血条
-    sf::RectangleShape barFill(sf::Vector2f(barWidth * tree->getHealthPercent(), barHeight));
+    // 血条填充
+    float healthPercent = tree->getHealthPercent();
+    sf::Color barColor;
+    if (healthPercent > 0.6f) {
+        barColor = sf::Color(60, 180, 60);  // 绿色
+    } else if (healthPercent > 0.3f) {
+        barColor = sf::Color(220, 180, 50); // 黄色
+    } else {
+        barColor = sf::Color(220, 60, 60);  // 红色
+    }
+    
+    sf::RectangleShape barFill(sf::Vector2f(barWidth * healthPercent, barHeight));
     barFill.setPosition(barX, barY);
-    barFill.setFillColor(sf::Color(220, 60, 60));
+    barFill.setFillColor(barColor);
     window.draw(barFill);
 }
 
@@ -748,6 +893,26 @@ Tree* TreeManager::addTree(float x, float y, const std::string& type) {
     trees.push_back(std::move(tree));
     
     std::cout << "[TreeManager] Added " << type << " tree at (" << x << ", " << y << ")" << std::endl;
+    return ptr;
+}
+
+Tree* TreeManager::addTreeFromProperty(float x, float y, const TileProperty* prop) {
+    auto tree = std::make_unique<Tree>();
+    tree->initFromTileProperty(x, y, prop);
+    
+    // 优先使用 TileProperty 中的独立贴图
+    if (prop && prop->hasTexture) {
+        tree->setTextureFromProperty(prop);
+    } else {
+        // 后备：从文件加载
+        tree->loadTextures(assetsBasePath + "/game_source/tree");
+    }
+    
+    Tree* ptr = tree.get();
+    trees.push_back(std::move(tree));
+    
+    std::string treeName = prop ? prop->name : "unknown";
+    std::cout << "[TreeManager] Added " << treeName << " tree from property at (" << x << ", " << y << ")" << std::endl;
     return ptr;
 }
 
@@ -769,19 +934,20 @@ void TreeManager::loadFromMapObjects(const std::vector<MapObject>& objects, floa
             float x = obj.x * displayScale;
             float y = obj.y * displayScale;
             
-            // 使用对象的name属性来确定树的类型
-            std::string treeType = obj.name.empty() ? "tree1" : obj.name;
+            Tree* tree = nullptr;
             
-            Tree* tree = addTree(x, y, treeType);
+            // 优先使用 TileProperty（动态属性）
+            if (obj.tileProperty) {
+                tree = addTreeFromProperty(x, y, obj.tileProperty);
+            } else {
+                // 后备：使用对象名称
+                std::string treeType = obj.name.empty() ? "tree1" : obj.name;
+                tree = addTree(x, y, treeType);
+            }
+            
             if (tree) {
-                // 可以从tsx属性读取HP，这里先用默认值
-                if (treeType == "apple_tree") {
-                    tree->setMaxHealth(40.0f);
-                    tree->setHealth(40.0f);
-                } else {
-                    tree->setMaxHealth(30.0f);
-                    tree->setHealth(30.0f);
-                }
+                // 设置尺寸
+                tree->setSize(obj.width * displayScale, obj.height * displayScale);
             }
         }
     }

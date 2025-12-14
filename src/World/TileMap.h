@@ -29,6 +29,23 @@ struct Tile {
     Tile() : id(0), textureIndex(0), texCoords(0, 0), type(TileType::Ground) {}
 };
 
+// 从tsx文件读取的Tile属性（用于树木、建筑等对象）
+struct TileProperty {
+    int localId;                    // tile在tileset中的ID
+    std::string name;               // 例如 "tree1", "apple_tree"
+    std::string type;               // 例如 "tree", "rock", "building"
+    int hp;                         // 生命值
+    int defense;                    // 防御力
+    int dropMax;                    // 最大掉落数量
+    std::vector<std::string> dropTypes;         // 掉落物品类型列表
+    std::vector<float> dropProbabilities;       // 各物品掉落概率
+    std::string imagePath;          // 该tile的图片路径
+    sf::Texture texture;            // 该tile的独立贴图（用于collection of images）
+    bool hasTexture;                // 是否有独立贴图
+    
+    TileProperty() : localId(0), hp(30), defense(5), dropMax(3), hasTexture(false) {}
+};
+
 struct TilesetInfo {
     int firstGid;
     int tileWidth;
@@ -38,9 +55,19 @@ struct TilesetInfo {
     std::string imagePath;
     sf::Texture texture;
     bool loaded;
+    std::string name;                           // tileset名称（如"tree"）
+    std::vector<TileProperty> tileProperties;   // 存储每个tile的属性
     
     TilesetInfo() : firstGid(1), tileWidth(32), tileHeight(32), 
                     columns(16), tileCount(256), loaded(false) {}
+    
+    // 根据localId查找tile属性
+    const TileProperty* getTileProperty(int localId) const {
+        for (const auto& prop : tileProperties) {
+            if (prop.localId == localId) return &prop;
+        }
+        return nullptr;
+    }
 };
 
 struct LayerInfo {
@@ -59,7 +86,11 @@ struct MapObject {
     int textureIndex;
     sf::Vector2i texCoords;
     
-    MapObject() : gid(0), x(0), y(0), width(0), height(0), textureIndex(-1), texCoords(0, 0) {}
+    // 从tsx文件读取的属性
+    const TileProperty* tileProperty;  // 指向对应的tile属性
+    
+    MapObject() : gid(0), x(0), y(0), width(0), height(0), 
+                  textureIndex(-1), texCoords(0, 0), tileProperty(nullptr) {}
 };
 
 class TileMap {
@@ -99,6 +130,9 @@ public:
     int getHeight() const;
     int getTileSize() const;
     const std::vector<MapObject>& getObjects() const;
+    
+    // 根据gid获取tile属性
+    const TileProperty* getTilePropertyByGid(int gid) const;
     
     // 清除对象（当TreeManager接管树木渲染后调用，避免重复渲染）
     void clearObjects() { objects.clear(); }
