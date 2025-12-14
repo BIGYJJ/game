@@ -1,11 +1,11 @@
-#include "Tree.h"
+﻿#include "Tree.h"
 #include "../World/TileMap.h"
 #include <iostream>
 #include <cstdlib>
 #include <cmath>
 #include <algorithm>
 #include <sstream>
-
+#define U8(str) (const char*)u8##str
 // ============================================================================
 // Tree 构造函数
 // ============================================================================
@@ -785,22 +785,17 @@ void TreeManager::renderTooltip(sf::RenderWindow& window, Tree* tree) {
     float tooltipX = mouseScreenPos.x + 20.0f;
     float tooltipY = mouseScreenPos.y + 20.0f;
     
-    // ========================================
-    // 使用 sf::String 代替 std::wstring
-    // sf::String 可以正确处理 UTF-8 中文
-    // ========================================
-    
     std::vector<sf::String> lines;
     
     // 标题（树木名称）
     lines.push_back(sf::String::fromUtf8(tree->getName().begin(), tree->getName().end()));
     
     // 类型
-    std::string typeStr = "类型: " + tree->getTreeType();
+    std::string typeStr = U8("类型: ") + tree->getTreeType();
     lines.push_back(sf::String::fromUtf8(typeStr.begin(), typeStr.end()));
     
     // 生长状态
-    std::string stageStr = "状态: " + tree->getGrowthStageName();
+    std::string stageStr = U8("状态: ") + tree->getGrowthStageName();
     lines.push_back(sf::String::fromUtf8(stageStr.begin(), stageStr.end()));
     
     // 空行用于分隔
@@ -808,52 +803,58 @@ void TreeManager::renderTooltip(sf::RenderWindow& window, Tree* tree) {
     
     // 生命值
     std::ostringstream hpStream;
-    hpStream << "生命值: " << (int)tree->getHealth() << " / " << (int)tree->getMaxHealth();
-    lines.push_back(sf::String::fromUtf8(hpStream.str().begin(), hpStream.str().end()));
+    hpStream << U8("生命值: ") << (int)tree->getHealth() << " / " << (int)tree->getMaxHealth();
+    std::string hpStr = hpStream.str();
+    lines.push_back(sf::String::fromUtf8(hpStr.begin(), hpStr.end()));
     
     // 防御
     std::ostringstream defStream;
-    defStream << "防御力: " << (int)tree->getDefense();
-    lines.push_back(sf::String::fromUtf8(defStream.str().begin(), defStream.str().end()));
+    defStream << U8("防御力: ") << (int)tree->getDefense();
+    std::string defStr = defStream.str();
+    lines.push_back(sf::String::fromUtf8(defStr.begin(), defStr.end()));
     
     // 空行用于分隔
     lines.push_back("");
     
     // 掉落物品
     if (!tree->getDropItems().empty()) {
-        lines.push_back(sf::String::fromUtf8(std::string("== 砍伐掉落 ==").begin(), std::string("== 砍伐掉落 ==").end()));
+        std::string dropTitleStr = U8("== 砍伐掉落 ==");
+        lines.push_back(sf::String::fromUtf8(dropTitleStr.begin(), dropTitleStr.end()));
         for (const auto& item : tree->getDropItems()) {
             std::ostringstream itemStream;
             itemStream << "  - " << item.name;
             itemStream << " x1-" << tree->getDropMax();
             itemStream << " (" << (int)(item.dropChance * 100) << "%)";
-            lines.push_back(sf::String::fromUtf8(itemStream.str().begin(), itemStream.str().end()));
+            std::string itemStr = itemStream.str();
+            lines.push_back(sf::String::fromUtf8(itemStr.begin(), itemStr.end()));
         }
     }
     
     // 果实
     if (!tree->getFruitDropItems().empty()) {
         lines.push_back("");
-        lines.push_back(sf::String::fromUtf8(std::string("== 果实 ==").begin(), std::string("== 果实 ==").end()));
+        std::string fruitTitleStr = U8("== 果实 ==");
+        lines.push_back(sf::String::fromUtf8(fruitTitleStr.begin(), fruitTitleStr.end()));
         for (const auto& item : tree->getFruitDropItems()) {
             std::ostringstream itemStream;
             itemStream << "  - " << item.name;
             if (tree->hasFruit()) {
-                itemStream << " [可采摘]";
+                itemStream << U8(" [可采摘]");
             }
-            lines.push_back(sf::String::fromUtf8(itemStream.str().begin(), itemStream.str().end()));
+            std::string itemStr = itemStream.str();
+            lines.push_back(sf::String::fromUtf8(itemStr.begin(), itemStr.end()));
         }
     }
     
-    // 计算提示框尺寸 - 增大尺寸
-    float lineHeight = 28.0f;          // 增大行高
-    float padding = 16.0f;             // 增大内边距
-    float minWidth = 220.0f;           // 最小宽度
+    // 计算提示框尺寸
+    float lineHeight = 28.0f;
+    float padding = 16.0f;
+    float minWidth = 220.0f;
     float maxWidth = 0.0f;
     
     sf::Text measureText;
     measureText.setFont(font);
-    measureText.setCharacterSize(18);  // 增大字体用于测量
+    measureText.setCharacterSize(18);
     
     for (const auto& line : lines) {
         measureText.setString(line);
@@ -862,7 +863,7 @@ void TreeManager::renderTooltip(sf::RenderWindow& window, Tree* tree) {
     }
     
     float tooltipWidth = std::max(minWidth, maxWidth + padding * 2);
-    float tooltipHeight = lines.size() * lineHeight + padding * 2 + 20;  // 额外空间给血条
+    float tooltipHeight = lines.size() * lineHeight + padding * 2 + 20;
     
     // 确保不超出屏幕
     sf::Vector2u windowSize = window.getSize();
@@ -873,12 +874,12 @@ void TreeManager::renderTooltip(sf::RenderWindow& window, Tree* tree) {
         tooltipY = windowSize.y - tooltipHeight - 10;
     }
     
-    // 绘制背景 - 更好看的样式
+    // 绘制背景
     sf::RectangleShape bg(sf::Vector2f(tooltipWidth, tooltipHeight));
     bg.setPosition(tooltipX, tooltipY);
     bg.setFillColor(sf::Color(25, 25, 35, 240));
     bg.setOutlineThickness(3.0f);
-    bg.setOutlineColor(sf::Color(139, 90, 43));  // 木质边框色
+    bg.setOutlineColor(sf::Color(139, 90, 43));
     window.draw(bg);
     
     // 绘制标题背景条
@@ -894,7 +895,7 @@ void TreeManager::renderTooltip(sf::RenderWindow& window, Tree* tree) {
     float y = tooltipY + padding;
     for (size_t i = 0; i < lines.size(); i++) {
         if (lines[i].isEmpty()) {
-            y += lineHeight * 0.3f;  // 空行只占部分高度
+            y += lineHeight * 0.3f;
             continue;
         }
         
@@ -924,7 +925,7 @@ void TreeManager::renderTooltip(sf::RenderWindow& window, Tree* tree) {
         y += lineHeight;
     }
     
-    // 绘制血条 - 增大尺寸
+    // 绘制血条
     float barX = tooltipX + padding;
     float barY = tooltipY + tooltipHeight - padding - 14;
     float barWidth = tooltipWidth - padding * 2;
