@@ -13,6 +13,19 @@ set(SOURCES
     src/main.cpp
     src/Core/Game.cpp
     src/States/GameState.cpp
+    src/World/TileMap.cpp
+    src/Entity/PlayerStats.cpp
+    src/Entity/Tree.cpp
+    src/UI/StatsPanel.cpp
+    src/Items/Item.cpp
+    src/Items/Inventory.cpp
+    src/Items/DroppedItem.cpp
+    src/UI/InventoryPanel.cpp
+    src/UI/EventLogPanel.cpp
+    src/UI/CategoryInventoryPanel.cpp
+    src/Items/CategoryInventory.cpp
+    src/Items/Crafting.cpp
+    src/Items/Equipment.cpp
 )
 
 # 头文件（帮助IDE识别）
@@ -21,9 +34,22 @@ set(HEADERS
     src/States/State.h
     src/States/GameState.h
     src/Entity/Player.h
+    src/Entity/PlayerStats.h
     src/World/TileMap.h
     src/World/Camera.h
+    src/Entity/Tree.h
     src/Systems/TimeSystem.h
+    src/UI/StatsPanel.h
+    # 物品和背包系统
+    src/Items/Item.h
+    src/Items/Inventory.h
+    src/Items/DroppedItem.h
+    src/Items/CategoryInventory.h
+    src/Items/Crafting.h
+    src/Items/Equipment.h
+    src/UI/InventoryPanel.h
+    src/UI/EventLogPanel.h
+    src/UI/CategoryInventoryPanel.h
 )
 
 # 创建可执行文件
@@ -57,12 +83,21 @@ if(WIN32)
     )
 endif()
 
+
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/assets
+        $<TARGET_FILE_DIR:${PROJECT_NAME}>/assets
+    COMMENT "Copying assets..."
+)
+
 # 编译选项
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /W4)
 else()
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra)
 endif()
+
 
 message(STATUS "========================================")
 message(STATUS "  项目: ${PROJECT_NAME}")

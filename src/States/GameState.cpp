@@ -7,7 +7,11 @@ GameState::GameState(Game* game, MapType mapType)
     : State(game)
     , currentMap(mapType)
     , wasAttacking(false)
+    , rng(std::random_device{}())
 {
+    // Initialize available tree types from tree.tsx
+    availableTreeTypes = {"tree1", "apple_tree", "cherry_tree", "cherry_blossom_tree"};
+    
     std::cout << "========================================" << std::endl;
     std::cout << "  Pixel Farm RPG - Scene Initialization" << std::endl;
     std::cout << "========================================" << std::endl;
@@ -55,8 +59,11 @@ GameState::GameState(Game* game, MapType mapType)
     std::cout << "\nControls:" << std::endl;
     std::cout << "  WASD/Arrows - Move" << std::endl;
     std::cout << "  Space       - Attack (chop trees!)" << std::endl;
-    std::cout << "  Tab/C       - Toggle Stats Panel" << std::endl;
-    std::cout << "  I/B         - Toggle Inventory" << std::endl;
+    std::cout << "  Tab         - Toggle Stats Panel" << std::endl;
+    std::cout << "  I/B         - Toggle Inventory (3 categories)" << std::endl;
+    std::cout << "  1/2/3       - Switch inventory category" << std::endl;
+    std::cout << "  E           - Toggle Equipment Panel" << std::endl;
+    std::cout << "  C           - Toggle Crafting Workshop" << std::endl;
     std::cout << "  F1 - Farm Map | F2 - Forest Map | F3 - Reload" << std::endl;
     std::cout << "  ESC - Exit" << std::endl;
     std::cout << "========================================\n" << std::endl;
@@ -69,16 +76,74 @@ void GameState::initItemSystem() {
     ItemDatabase::getInstance().initialize();
     ItemDatabase::getInstance().loadTextures("");
     
-    // 创建背包
-    inventory = std::make_unique<Inventory>();
+    // 初始化装备管理器
+    EquipmentManager::getInstance().initialize();
+    
+    // 初始化合成管理器
+    CraftingManager::getInstance().initialize();
+    
+    // 创建分类背包
+    categoryInventory = std::make_unique<CategoryInventory>();
+    
+    // 创建玩家装备栏
+    playerEquipment = std::make_unique<PlayerEquipment>();
     
     // 设置使用物品回调
-    inventory->setOnUseItem([this](const ItemStack& item, const ItemData* data) {
+    categoryInventory->setOnUseItem([this](const ItemStack& item, const ItemData* data) {
         return onUseItem(item, data);
     });
     
+    // 设置卖出物品回调
+    categoryInventory->setOnSellItem([this](const ItemStack& item, int sellPrice) {
+        onSellItem(item, sellPrice);
+    });
+    
+    // 设置种植种子回调
+    categoryInventory->setOnPlantSeed([this](const ItemStack& seed) {
+        return onPlantSeed(seed);
+    });
+    
+    // 设置装备物品回调
+    categoryInventory->setOnEquipItem([this](const ItemStack& item) {
+        if (!playerEquipment) return false;
+        
+        const EquipmentData* equipData = EquipmentManager::getInstance().getEquipmentData(item.itemId);
+        if (!equipData) return false;
+        
+        // 检查等级需求
+        if (player && player->getStats().getLevel() < equipData->requiredLevel) {
+            if (eventLogPanel) {
+                eventLogPanel->addWarning("等级不足，需要 Lv." + std::to_string(equipData->requiredLevel));
+            }
+            return false;
+        }
+        
+        // 尝试装备，获取旧装备
+        ItemStack oldItem = playerEquipment->equip(*equipData);
+        
+        if (eventLogPanel) {
+            eventLogPanel->addMessage("装备了 " + equipData->name, EventType::System);
+        }
+        
+        // 如果有旧装备，放回背包
+        if (!oldItem.isEmpty()) {
+            if (eventLogPanel) {
+                const ItemData* oldData = ItemDatabase::getInstance().getItemData(oldItem.itemId);
+                if (oldData) {
+                    eventLogPanel->addMessage("卸下了 " + oldData->name, EventType::System);
+                }
+            }
+            categoryInventory->addItem(oldItem.itemId, oldItem.count);
+        }
+        
+        std::cout << "[Equip] Equipped " << item.itemId << std::endl;
+        return true;
+    });
+    
     // 设置物品添加回调（用于显示提示）
-    inventory->setOnItemAdded([](const ItemStack& item, int slotIndex) {
+    categoryInventory->setOnItemAdded([](const ItemStack& item, int slotIndex, InventoryCategory category) {
+        (void)slotIndex;  // 未使用参数
+        (void)category;   // 未使用参数
         const ItemData* data = ItemDatabase::getInstance().getItemData(item.itemId);
         if (data) {
             std::cout << "[Inventory] +" << item.count << " " << data->name << std::endl;
@@ -91,8 +156,8 @@ void GameState::initItemSystem() {
     
     // 设置拾取回调
     droppedItemManager->setOnItemPickup([this](const ItemStack& item) {
-        // 添加到背包
-        int added = inventory->addItemStack(item);
+        // 添加到分类背包
+        int added = categoryInventory->addItem(item.itemId, item.count);
         
         // 添加到事件日志（只有成功拾取的物品）
         if (added > 0 && eventLogPanel) {
@@ -115,9 +180,14 @@ void GameState::initItemSystem() {
         }
     });
     
+    // 注意：合成成功回调已在 initUI() 中通过 craftingPanel->setOnCraftSuccess() 设置
+    
     // 测试：给玩家一些初始物品
-    inventory->addItem("wood", 5);
-    inventory->addItem("apple", 3);
+    categoryInventory->addItem("wood", 10);
+    categoryInventory->addItem("stick", 5);
+    categoryInventory->addItem("stone", 5);
+    categoryInventory->addItem("apple", 3);
+    categoryInventory->addItem("seed", 3);
     
     std::cout << "[ItemSystem] Initialized successfully" << std::endl;
 }
@@ -157,19 +227,53 @@ void GameState::initUI(sf::RenderWindow& window) {
     statsPanel->setIconPosition(20.0f, windowSize.y - 80.0f);
     
     // ========================================
-    // 创建背包面板
+    // 创建分类背包面板
     // ========================================
-    inventoryPanel = std::make_unique<InventoryPanel>();
-    inventoryPanel->init("../../assets/ui/inventory_icon.png");
-    inventoryPanel->setInventory(inventory.get());
-    inventoryPanel->setIconPosition(150.0f, windowSize.y - 80.0f);  // 往右移动更多
+    categoryInventoryPanel = std::make_unique<CategoryInventoryPanel>();
+    categoryInventoryPanel->init("../../assets/ui/inventory_icon.png");
+    categoryInventoryPanel->setInventory(categoryInventory.get());
+    categoryInventoryPanel->setPlayerEquipment(playerEquipment.get());
+    categoryInventoryPanel->setIconPosition(90.0f, windowSize.y - 80.0f);
     
     // 设置丢弃物品回调
-    inventoryPanel->setOnDropItem([this](const ItemStack& item, sf::Vector2f pos) {
+    categoryInventoryPanel->setOnDropItem([this](const ItemStack& item, sf::Vector2f pos) {
         if (player && droppedItemManager) {
             sf::Vector2f playerPos = player->getPosition();
-            // 在玩家位置前方掉落
             droppedItemManager->spawnItem(item.itemId, item.count, playerPos.x + 30, playerPos.y);
+        }
+    });
+    
+    // ========================================
+    // 创建装备栏面板
+    // ========================================
+    equipmentPanel = std::make_unique<EquipmentPanel>();
+    equipmentPanel->init("../../assets/ui/equipment_icon.png");
+    equipmentPanel->setPlayerEquipment(playerEquipment.get());
+    equipmentPanel->setIconPosition(160.0f, windowSize.y - 80.0f);
+    
+    // 设置卸下装备回调
+    equipmentPanel->setOnUnequip([this](EquipmentSlot slot) {
+        onUnequipItem(slot);
+    });
+    
+    // ========================================
+    // 创建工作台/合成面板
+    // ========================================
+    craftingPanel = std::make_unique<CraftingPanel>();
+    craftingPanel->init("../../assets/ui/crafting_icon.png");
+    craftingPanel->setInventory(categoryInventory.get());
+    craftingPanel->setIconPosition(230.0f, windowSize.y - 80.0f);
+    
+    // 设置合成成功回调
+    craftingPanel->setOnCraftSuccess([this](const std::string& itemId, int count) {
+        // 添加到背包
+        int added = categoryInventory->addItem(itemId, count);
+        
+        if (eventLogPanel) {
+            const ItemData* data = ItemDatabase::getInstance().getItemData(itemId);
+            if (data) {
+                eventLogPanel->addMessage("合成: " + data->name + " x" + std::to_string(count), EventType::System);
+            }
         }
     });
     
@@ -187,8 +291,14 @@ void GameState::initUI(sf::RenderWindow& window) {
     
     // 添加欢迎消息
     eventLogPanel->addMessage("欢迎来到像素农场！", EventType::System);
+    eventLogPanel->addMessage("按 I/B 打开背包", EventType::System);
+    eventLogPanel->addMessage("按 E 打开装备栏", EventType::System);
+    eventLogPanel->addMessage("按 C 打开工作台", EventType::System);
     
     std::cout << "[OK] UI initialized" << std::endl;
+    std::cout << "  - I/B: 分类背包 (材料/消耗品/装备)" << std::endl;
+    std::cout << "  - E: 装备栏" << std::endl;
+    std::cout << "  - C: 工作台/合成" << std::endl;
 }
 
 void GameState::loadMap(MapType mapType) {
@@ -225,11 +335,26 @@ void GameState::loadMap(MapType mapType) {
 }
 
 void GameState::handleInput(const sf::Event& event) {
-    // Handle UI input first (inventory panel has priority)
-    if (inventoryPanel) {
-        inventoryPanel->handleEvent(event, game->getWindow());
-        // 如果背包打开，不处理其他输入
-        if (inventoryPanel->isOpen()) {
+    // 处理分类背包面板事件
+    if (categoryInventoryPanel) {
+        categoryInventoryPanel->handleEvent(event, game->getWindow());
+        if (categoryInventoryPanel->isOpen()) {
+            return;
+        }
+    }
+    
+    // 处理装备面板事件
+    if (equipmentPanel) {
+        equipmentPanel->handleEvent(event, game->getWindow());
+        if (equipmentPanel->isOpen()) {
+            return;
+        }
+    }
+    
+    // 处理合成面板事件
+    if (craftingPanel) {
+        craftingPanel->handleEvent(event, game->getWindow());
+        if (craftingPanel->isOpen()) {
             return;
         }
     }
@@ -241,9 +366,13 @@ void GameState::handleInput(const sf::Event& event) {
     if (event.type == sf::Event::KeyPressed) {
         switch (event.key.code) {
             case sf::Keyboard::Escape:
-                // 如果背包打开，先关闭背包
-                if (inventoryPanel && inventoryPanel->isOpen()) {
-                    inventoryPanel->close();
+                // 如果任何面板打开，先关闭
+                if (categoryInventoryPanel && categoryInventoryPanel->isOpen()) {
+                    categoryInventoryPanel->close();
+                } else if (equipmentPanel && equipmentPanel->isOpen()) {
+                    equipmentPanel->close();
+                } else if (craftingPanel && craftingPanel->isOpen()) {
+                    craftingPanel->close();
                 } else {
                     requestPop();
                 }
@@ -266,20 +395,17 @@ void GameState::handleInput(const sf::Event& event) {
                 break;
             }
             
-            // Debug: Add experience/gold for testing
+            // 装备面板快捷键
             case sf::Keyboard::E:
-                if (player) {
-                    int oldLevel = player->getStats().getLevel();
-                    player->getStats().addExp(50);
-                    int newLevel = player->getStats().getLevel();
-                    
-                    if (eventLogPanel) {
-                        eventLogPanel->addExpObtained(50, "测试");
-                        if (newLevel > oldLevel) {
-                            eventLogPanel->addLevelUp(newLevel);
-                        }
-                    }
-                    std::cout << "[DEBUG] +50 EXP" << std::endl;
+                if (equipmentPanel) {
+                    equipmentPanel->toggle();
+                }
+                break;
+            
+            // 合成面板快捷键
+            case sf::Keyboard::C:
+                if (craftingPanel) {
+                    craftingPanel->toggle();
                 }
                 break;
                 
@@ -295,12 +421,16 @@ void GameState::handleInput(const sf::Event& event) {
                 
             // Debug: Add test items
             case sf::Keyboard::T:
-                if (inventory) {
-                    inventory->addItem("wood", 10);
-                    inventory->addItem("cherry", 5);
+                if (categoryInventory) {
+                    categoryInventory->addItem("wood", 10);
+                    categoryInventory->addItem("cherry", 5);
+                    categoryInventory->addItem("stone", 5);
+                    categoryInventory->addItem("stick", 10);
                     if (eventLogPanel) {
                         eventLogPanel->addItemObtained("木材", 10, "wood");
                         eventLogPanel->addItemObtained("樱桃", 5, "cherry");
+                        eventLogPanel->addItemObtained("石头", 5, "stone");
+                        eventLogPanel->addItemObtained("树枝", 10, "stick");
                     }
                     std::cout << "[DEBUG] Added test items" << std::endl;
                 }
@@ -313,9 +443,16 @@ void GameState::handleInput(const sf::Event& event) {
 }
 
 void GameState::update(float dt) {
-    // 如果背包打开，暂停游戏逻辑
-    if (inventoryPanel && inventoryPanel->isOpen()) {
-        inventoryPanel->update(dt);
+    // 检查任何面板是否打开
+    bool anyPanelOpen = (categoryInventoryPanel && categoryInventoryPanel->isOpen()) ||
+                        (equipmentPanel && equipmentPanel->isOpen()) ||
+                        (craftingPanel && craftingPanel->isOpen());
+    
+    // 如果任何面板打开，更新面板但暂停游戏逻辑
+    if (anyPanelOpen) {
+        if (categoryInventoryPanel) categoryInventoryPanel->update(dt);
+        if (equipmentPanel) equipmentPanel->update(dt);
+        if (craftingPanel) craftingPanel->update(dt);
         return;
     }
     
@@ -354,9 +491,9 @@ void GameState::update(float dt) {
             statsPanel->updateStats(player->getStats());
         }
         
-        // Update inventory panel gold display
-        if (inventoryPanel) {
-            inventoryPanel->setGold(player->getStats().getGold());
+        // Update category inventory panel gold display
+        if (categoryInventoryPanel) {
+            categoryInventoryPanel->setGold(player->getStats().getGold());
         }
     }
     
@@ -384,8 +521,14 @@ void GameState::update(float dt) {
     if (statsPanel) {
         statsPanel->update(dt);
     }
-    if (inventoryPanel) {
-        inventoryPanel->update(dt);
+    if (categoryInventoryPanel) {
+        categoryInventoryPanel->update(dt);
+    }
+    if (equipmentPanel) {
+        equipmentPanel->update(dt);
+    }
+    if (craftingPanel) {
+        craftingPanel->update(dt);
     }
     if (eventLogPanel) {
         eventLogPanel->update(dt);
@@ -425,7 +568,10 @@ void GameState::render(sf::RenderWindow& window) {
     renderUI(window);
     
     // Render tree tooltips (needs world mouse position)
-    if (treeManager && camera && !(inventoryPanel && inventoryPanel->isOpen())) {
+    bool anyPanelOpen = (categoryInventoryPanel && categoryInventoryPanel->isOpen()) ||
+                        (equipmentPanel && equipmentPanel->isOpen()) ||
+                        (craftingPanel && craftingPanel->isOpen());
+    if (treeManager && camera && !anyPanelOpen) {
         sf::Vector2i mouseScreenPos = sf::Mouse::getPosition(window);
         sf::Vector2f mouseWorldPos = window.mapPixelToCoords(mouseScreenPos, camera->getView());
         treeManager->renderTooltips(window, mouseWorldPos);
@@ -444,9 +590,19 @@ void GameState::renderUI(sf::RenderWindow& window) {
         statsPanel->render(window);
     }
     
-    // Render inventory panel
-    if (inventoryPanel) {
-        inventoryPanel->render(window);
+    // Render category inventory panel
+    if (categoryInventoryPanel) {
+        categoryInventoryPanel->render(window);
+    }
+    
+    // Render equipment panel
+    if (equipmentPanel) {
+        equipmentPanel->render(window);
+    }
+    
+    // Render crafting panel
+    if (craftingPanel) {
+        craftingPanel->render(window);
     }
     
     // Render event log panel (top-right)
@@ -740,5 +896,183 @@ std::string GameState::getMapName(MapType mapType) const {
         case MapType::Farm:   return "Farm";
         case MapType::Forest: return "Forest";
         default:              return "Unknown";
+    }
+}
+
+// ============================================================================
+// 卖出物品回调
+// ============================================================================
+void GameState::onSellItem(const ItemStack& item, int sellPrice) {
+    if (!player) return;
+    
+    player->getStats().addGold(sellPrice);
+    
+    if (eventLogPanel) {
+        const ItemData* data = ItemDatabase::getInstance().getItemData(item.itemId);
+        if (data) {
+            eventLogPanel->addMessage("卖出 " + data->name + " x" + std::to_string(item.count) + 
+                                     " 获得 " + std::to_string(sellPrice) + " 金币", EventType::System);
+        }
+        eventLogPanel->addGoldObtained(sellPrice);
+    }
+    
+    std::cout << "[Sell] Sold " << item.itemId << " x" << item.count 
+              << " for " << sellPrice << " gold" << std::endl;
+}
+
+// ============================================================================
+// 种植种子回调 - 随机生成tree.tsx中的树木类型
+// ============================================================================
+bool GameState::onPlantSeed(const ItemStack& seed) {
+    if (!player || !treeManager) return false;
+    
+    sf::Vector2f playerPos = player->getPosition();
+    
+    // 检查玩家周围是否可以种植（简单检查）
+    // TODO: 更复杂的地形检测
+    
+    // 随机选择树木类型
+    std::uniform_int_distribution<int> dist(0, availableTreeTypes.size() - 1);
+    std::string treeType = availableTreeTypes[dist(rng)];
+    
+    // 在玩家前方种植
+    float plantX = playerPos.x + 50;
+    float plantY = playerPos.y;
+    
+    // 创建树木
+    Tree* newTree = treeManager->addTree(plantX, plantY, treeType);
+    
+    if (newTree) {
+        newTree->setSize(64, 64);
+        
+        // 设置销毁回调
+        newTree->setOnDestroyed([this](Tree& t) {
+            auto drops = t.generateDrops();
+            
+            if (!drops.empty() && droppedItemManager) {
+                sf::Vector2f treePos = t.getPosition();
+                droppedItemManager->spawnItems(drops, treePos.x, treePos.y - 20);
+                
+                if (eventLogPanel) {
+                    for (const auto& drop : drops) {
+                        const ItemData* data = ItemDatabase::getInstance().getItemData(drop.first);
+                        if (data) {
+                            eventLogPanel->addItemObtained(data->name, drop.second, drop.first);
+                        }
+                    }
+                }
+            }
+            
+            if (player) {
+                int exp = t.getExpReward();
+                int gold = t.getGoldReward();
+                
+                int oldLevel = player->getStats().getLevel();
+                player->getStats().addExp(exp);
+                int newLevel = player->getStats().getLevel();
+                
+                player->getStats().addGold(gold);
+                
+                if (eventLogPanel) {
+                    eventLogPanel->addTreeChopped(t.getName());
+                    if (exp > 0) eventLogPanel->addExpObtained(exp, "砍伐");
+                    if (gold > 0) eventLogPanel->addGoldObtained(gold);
+                    if (newLevel > oldLevel) eventLogPanel->addLevelUp(newLevel);
+                }
+            }
+        });
+        
+        // 设置果实采摘回调
+        newTree->setOnFruitHarvested([this](Tree& t) {
+            auto drops = t.generateFruitDrops();
+            
+            if (!drops.empty() && droppedItemManager) {
+                sf::Vector2f treePos = t.getPosition();
+                droppedItemManager->spawnItems(drops, treePos.x, treePos.y - 20);
+                
+                if (eventLogPanel) {
+                    for (const auto& drop : drops) {
+                        const ItemData* data = ItemDatabase::getInstance().getItemData(drop.first);
+                        if (data) {
+                            eventLogPanel->addFruitHarvested(data->name, drop.second);
+                        }
+                    }
+                }
+            }
+        });
+        
+        if (eventLogPanel) {
+            eventLogPanel->addMessage("种下了种子，长出了 " + newTree->getName(), EventType::System);
+        }
+        
+        std::cout << "[Plant] Planted seed, grew into " << treeType << " at (" 
+                  << plantX << ", " << plantY << ")" << std::endl;
+        
+        return true;
+    }
+    
+    return false;
+}
+
+// ============================================================================
+// 装备物品回调
+// ============================================================================
+void GameState::onEquipItem(const ItemStack& item) {
+    if (!playerEquipment) return;
+    
+    const EquipmentData* equipData = EquipmentManager::getInstance().getEquipmentData(item.itemId);
+    if (!equipData) return;
+    
+    // 检查等级需求
+    if (player && player->getStats().getLevel() < equipData->requiredLevel) {
+        if (eventLogPanel) {
+            eventLogPanel->addWarning("等级不足，需要 Lv." + std::to_string(equipData->requiredLevel));
+        }
+        return;
+    }
+    
+    // 尝试装备
+    ItemStack oldItem = playerEquipment->equip(*equipData);
+    
+    if (eventLogPanel) {
+        eventLogPanel->addMessage("装备了 " + equipData->name, EventType::System);
+        
+        if (!oldItem.isEmpty()) {
+            const ItemData* oldData = ItemDatabase::getInstance().getItemData(oldItem.itemId);
+            if (oldData) {
+                eventLogPanel->addMessage("卸下了 " + oldData->name, EventType::System);
+            }
+            // 将旧装备放回背包
+            categoryInventory->addItem(oldItem.itemId, oldItem.count);
+        }
+    }
+    
+    std::cout << "[Equip] Equipped " << item.itemId << std::endl;
+}
+
+// ============================================================================
+// 卸下装备回调
+// ============================================================================
+void GameState::onUnequipItem(EquipmentSlot slot) {
+    if (!playerEquipment || !categoryInventory) return;
+    
+    ItemStack unequipped = playerEquipment->unequipToStack(slot);
+    
+    if (!unequipped.isEmpty()) {
+        // 放回背包
+        int added = categoryInventory->addItem(unequipped.itemId, unequipped.count);
+        
+        if (eventLogPanel) {
+            const ItemData* data = ItemDatabase::getInstance().getItemData(unequipped.itemId);
+            if (data) {
+                eventLogPanel->addMessage("卸下了 " + data->name, EventType::System);
+            }
+            
+            if (added < unequipped.count) {
+                eventLogPanel->addWarning("背包已满，部分装备无法放入！");
+            }
+        }
+        
+        std::cout << "[Unequip] Unequipped " << unequipped.itemId << std::endl;
     }
 }

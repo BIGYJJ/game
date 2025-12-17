@@ -7,12 +7,17 @@
 #include "../Systems/TimeSystem.h"
 #include "../UI/StatsPanel.h"
 #include "../UI/InventoryPanel.h"
+#include "../UI/CategoryInventoryPanel.h"
 #include "../UI/EventLogPanel.h"
 #include "../Items/Item.h"
 #include "../Items/Inventory.h"
+#include "../Items/CategoryInventory.h"
+#include "../Items/Equipment.h"
+#include "../Items/Crafting.h"
 #include "../Items/DroppedItem.h"
 #include <memory>
 #include <string>
+#include <random>
 
 // Map type enumeration
 enum class MapType {
@@ -62,6 +67,18 @@ private:
     // Use consumable item (callback)
     bool onUseItem(const ItemStack& item, const ItemData* data);
     
+    // Sell item callback
+    void onSellItem(const ItemStack& item, int sellPrice);
+    
+    // Plant seed callback - returns true if planting was successful
+    bool onPlantSeed(const ItemStack& seed);
+    
+    // Equip item callback
+    void onEquipItem(const ItemStack& item);
+    
+    // Unequip item callback
+    void onUnequipItem(EquipmentSlot slot);
+    
     // Get map name string
     std::string getMapName(MapType mapType) const;
 
@@ -73,13 +90,18 @@ private:
     std::unique_ptr<TimeSystem> timeSystem;
     std::unique_ptr<TreeManager> treeManager;
     
-    // Item system
-    std::unique_ptr<Inventory> inventory;
+    // Item system - new categorized inventory
+    std::unique_ptr<CategoryInventory> categoryInventory;
     std::unique_ptr<DroppedItemManager> droppedItemManager;
     
-    // UI
+    // Equipment system
+    std::unique_ptr<PlayerEquipment> playerEquipment;
+    
+    // UI panels
     std::unique_ptr<StatsPanel> statsPanel;
-    std::unique_ptr<InventoryPanel> inventoryPanel;
+    std::unique_ptr<CategoryInventoryPanel> categoryInventoryPanel;
+    std::unique_ptr<EquipmentPanel> equipmentPanel;
+    std::unique_ptr<CraftingPanel> craftingPanel;
     std::unique_ptr<EventLogPanel> eventLogPanel;
     
     // Current map type
@@ -90,4 +112,10 @@ private:
     
     // Item pickup range
     static constexpr float PICKUP_RANGE = 50.0f;
+    
+    // Random number generator for seed planting
+    std::mt19937 rng;
+    
+    // Tree types available for seed planting (from tree.tsx)
+    std::vector<std::string> availableTreeTypes;
 };
