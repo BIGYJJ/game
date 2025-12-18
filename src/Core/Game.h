@@ -10,7 +10,7 @@ public:
     Game();
     ~Game();
     
-    void run();
+    void run();  // 运行程序
     
     // 状态管理
     void pushState(std::unique_ptr<State> state);
