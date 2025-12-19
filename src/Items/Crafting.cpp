@@ -276,6 +276,9 @@ CraftingPanel::CraftingPanel()
     , hoveredRecipe(-1)
     , scrollOffset(0)
     , iconLoaded(false)
+    , iconHovered(false)
+    , iconHoverScale(1.0f)
+    , iconTargetScale(1.0f)
     , fontLoaded(false)
     , onCraft(nullptr)
     , onCraftSuccess(nullptr)
@@ -326,17 +329,40 @@ void CraftingPanel::setIconPosition(float x, float y) {
     iconSprite.setPosition(iconPosition);
 }
 
-void CraftingPanel::update(float /*dt*/) {
-    // 更新动画等
+void CraftingPanel::update(float dt) {
+    // 图标悬浮动画
+    float scaleSpeed = 8.0f;
+    iconHoverScale += (iconTargetScale - iconHoverScale) * scaleSpeed * dt;
+    
+    // 更新图标缩放（保持中心点）
+    sf::Vector2f iconCenter = iconPosition + sf::Vector2f(
+        iconTexture.getSize().x * ICON_BASE_SCALE / 2.0f,
+        iconTexture.getSize().y * ICON_BASE_SCALE / 2.0f
+    );
+    iconSprite.setScale(ICON_BASE_SCALE * iconHoverScale, ICON_BASE_SCALE * iconHoverScale);
+    iconSprite.setPosition(
+        iconCenter.x - iconTexture.getSize().x * ICON_BASE_SCALE * iconHoverScale / 2.0f,
+        iconCenter.y - iconTexture.getSize().y * ICON_BASE_SCALE * iconHoverScale / 2.0f
+    );
 }
 
 void CraftingPanel::handleEvent(const sf::Event& event, sf::RenderWindow& window) {
     sf::Vector2i mousePos = sf::Mouse::getPosition(window);
     sf::Vector2f mousePosF(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y));
     
+    // 检查图标悬浮
+    sf::FloatRect iconBounds(iconPosition.x - 5, iconPosition.y - 5, 60, 60);
+    if (iconBounds.contains(mousePosF)) {
+        iconHovered = true;
+        iconTargetScale = 1.15f;
+    } else {
+        iconHovered = false;
+        iconTargetScale = 1.0f;
+    }
+    
     // 图标点击
     if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
-        if (!panelOpen && iconSprite.getGlobalBounds().contains(mousePosF)) {
+        if (!panelOpen && iconBounds.contains(mousePosF)) {
             open();
             return;
         }
@@ -652,11 +678,12 @@ void CraftingPanel::renderRecipeDetail(sf::RenderWindow& window) {
         const ItemData* resultData = ItemDatabase::getInstance().getItemData(recipe.resultItemId);
         std::string resultName = resultData ? resultData->name : recipe.resultItemId;
         
-        std::stringstream ss;
-        ss << recipe.resultCount << "x " << resultName;
+        std::stringstream resultSS;
+        resultSS << recipe.resultCount << "x " << resultName;
+        std::string resultStr = resultSS.str();
         sf::Text resultText;
         resultText.setFont(font);
-        resultText.setString(sf::String::fromUtf8(ss.str().begin(), ss.str().end()));
+        resultText.setString(sf::String::fromUtf8(resultStr.begin(), resultStr.end()));
         resultText.setCharacterSize(14);
         resultText.setFillColor(sf::Color(100, 255, 100));
         resultText.setPosition(detailX + 20, ingY + 35);
@@ -714,12 +741,13 @@ void CraftingPanel::renderIngredient(sf::RenderWindow& window, const RecipeIngre
     
     int owned = inventory ? inventory->getItemCount(ing.itemId) : 0;
     
-    std::stringstream ss;
-    ss << "  " << ing.count << "x " << itemName << " (" << owned << "/" << ing.count << ")";
+    std::stringstream ingredientSS;
+    ingredientSS << "  " << ing.count << "x " << itemName << " (" << owned << "/" << ing.count << ")";
+    std::string ingredientStr = ingredientSS.str();
     
     sf::Text text;
     text.setFont(font);
-    text.setString(sf::String::fromUtf8(ss.str().begin(), ss.str().end()));
+    text.setString(sf::String::fromUtf8(ingredientStr.begin(), ingredientStr.end()));
     text.setCharacterSize(13);
     text.setFillColor(hasEnough ? sf::Color(150, 255, 150) : sf::Color(255, 150, 150));
     text.setPosition(pos);

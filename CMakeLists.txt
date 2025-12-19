@@ -16,6 +16,7 @@ set(SOURCES
     src/World/TileMap.cpp
     src/Entity/PlayerStats.cpp
     src/Entity/Tree.cpp
+    src/Entity/Rabbit.cpp
     src/UI/StatsPanel.cpp
     src/Items/Item.cpp
     src/Items/Inventory.cpp
@@ -38,6 +39,7 @@ set(HEADERS
     src/World/TileMap.h
     src/World/Camera.h
     src/Entity/Tree.h
+    src/Entity/Rabbit.h
     src/Systems/TimeSystem.h
     src/UI/StatsPanel.h
     # 物品和背包系统
@@ -101,5 +103,5 @@ endif()
 
 message(STATUS "========================================")
 message(STATUS "  项目: ${PROJECT_NAME}")
-message(STATUS "  C++标准: ${CMAKE_CXX_STANDARD}")
+message(STATUS "  C++标准: ${CMAKE_CXX_STAND1ARD}")
 message(STATUS "========================================")

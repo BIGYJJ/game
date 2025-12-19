@@ -4,6 +4,7 @@
 #include <sstream>
 #include <iomanip>
 #include <cstdlib>
+#include <iostream>
 
 // ============================================================================
 // 构造函数 - 初始化默认属性
@@ -47,6 +48,8 @@ PlayerStats::PlayerStats()
     , onStaminaChange(nullptr)
     , onGoldChange(nullptr)
     , onSkillLevelUp(nullptr)
+    // 随机数生成器
+    , rng(std::random_device{}())
 {
     // 初始化生活技能
     farmingSkill = SkillInfo();
@@ -193,19 +196,38 @@ void PlayerStats::checkLevelUp() {
 }
 
 void PlayerStats::applyLevelUpBonus() {
-    // 每级属性成长
-    baseAttack += 2.0f;
-    baseDefense += 1.5f;
-    baseSpeed += 1.0f;
-    baseDodge += 0.5f;
+    // 随机属性成长范围
+    std::uniform_int_distribution<int> attackDist(3, 6);      // 攻击力 3-6
+    std::uniform_int_distribution<int> healthDist(20, 50);    // 生命值 20-50
+    std::uniform_int_distribution<int> staminaDist(10, 20);   // 体力 10-20
+    std::uniform_int_distribution<int> defenseDist(2, 5);     // 防御力 2-5
+    std::uniform_int_distribution<int> luckDist(1, 2);        // 幸运 1-2
+    
+    // 应用随机成长
+    int atkGain = attackDist(rng);
+    int hpGain = healthDist(rng);
+    int spGain = staminaDist(rng);
+    int defGain = defenseDist(rng);
+    int luckGain = luckDist(rng);
+    
+    baseAttack += static_cast<float>(atkGain);
+    baseDefense += static_cast<float>(defGain);
+    luck += static_cast<float>(luckGain);
     
     // 最大值成长
-    maxHealth += 10.0f;
-    maxStamina += 5.0f;
+    maxHealth += static_cast<float>(hpGain);
+    maxStamina += static_cast<float>(spGain);
     
     // 升级时完全恢复
     health = maxHealth;
     stamina = maxStamina;
+    
+    // 输出升级信息（调试用）
+    std::cout << "[升级] ATK+" << atkGain 
+              << " DEF+" << defGain 
+              << " HP+" << hpGain 
+              << " SP+" << spGain 
+              << " LCK+" << luckGain << std::endl;
 }
 
 int PlayerStats::calculateExpForLevel(int lvl) const {
@@ -234,9 +256,11 @@ float PlayerStats::calculateDamageTaken(float incomingDamage) const {
 }
 
 bool PlayerStats::rollDodge(float enemyDodgeReduction) const {
-    // 实际闪避率 = 自身闪避 - 敌人减闪
-    float effectiveDodge = getDodge() - enemyDodgeReduction;
-    effectiveDodge = clamp(effectiveDodge, 0.0f, 75.0f);  // 最高75%闪避
+    // 新闪避公式: 1闪避值 = 0.5%闪避几率，最大200 = 100%
+    // 实际闪避率 = (自身闪避值 * 0.5) - 敌人减闪
+    float baseDodgePercent = getDodge() * 0.5f;  // 闪避值转换为百分比
+    float effectiveDodge = baseDodgePercent - enemyDodgeReduction;
+    effectiveDodge = clamp(effectiveDodge, 0.0f, 100.0f);  // 最高100%闪避
     
     float roll = static_cast<float>(rand() % 100);
     return roll < effectiveDodge;
@@ -442,7 +466,7 @@ std::string PlayerStats::getDebugString() const {
     std::stringstream ss;
     ss << std::fixed << std::setprecision(1);
     
-    ss << "=== Player Stats ===" << std::endl;
+    ss << "=== Player1 Stats ===" << std::endl;
     ss << "Lv." << level << " (" << exp << "/" << expToNextLevel << " EXP)" << std::endl;
     ss << std::endl;
     

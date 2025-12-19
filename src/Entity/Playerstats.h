@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <functional>
+#include <random>
 
 // ============================================================================
 // 角色属性系统
@@ -259,6 +260,9 @@ private:
     StatsCallback onStaminaChange;
     StatsCallback onGoldChange;
     StatsCallback onSkillLevelUp;
+    
+    // === 随机数生成器 ===
+    mutable std::mt19937 rng;
     
     // === 常量配置 ===
     static constexpr float HUNGER_DECAY_RATE = 1.0f;        // 每秒饥饿度下降

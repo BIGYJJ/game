@@ -76,6 +76,51 @@ void ItemDatabase::initialize() {
         registerItem(stone);
     }
     
+    // 兔子掉落物品
+    {
+        ItemData rabbitFur;
+        rabbitFur.id = "rabbit_fur";
+        rabbitFur.name = "兔毛";
+        rabbitFur.description = "柔软的兔毛，可用于制作衣物";
+        rabbitFur.type = ItemType::Material;
+        rabbitFur.rarity = ItemRarity::Common;
+        rabbitFur.maxStack = 99;
+        rabbitFur.sellPrice = 5;
+        rabbitFur.buyPrice = 15;
+        rabbitFur.texturePath = "assets/materials/rabbit_fur.png";
+        registerItem(rabbitFur);
+    }
+    
+    {
+        ItemData rabbitMeat;
+        rabbitMeat.id = "rabbit_meat";
+        rabbitMeat.name = "兔肉";
+        rabbitMeat.description = "新鲜的兔肉，可以烹饪食用";
+        rabbitMeat.type = ItemType::Consumable;
+        rabbitMeat.rarity = ItemRarity::Uncommon;
+        rabbitMeat.maxStack = 20;
+        rabbitMeat.sellPrice = 15;
+        rabbitMeat.buyPrice = 40;
+        rabbitMeat.texturePath = "assets/consumables/rabbit_meat.png";
+        rabbitMeat.effects.push_back(ConsumableEffect(EffectType::RestoreHealth, 30));
+        registerItem(rabbitMeat);
+    }
+    
+    {
+        ItemData carrot;
+        carrot.id = "carrot";
+        carrot.name = "胡萝卜";
+        carrot.description = "新鲜的胡萝卜，兔子的最爱";
+        carrot.type = ItemType::Consumable;
+        carrot.rarity = ItemRarity::Common;
+        carrot.maxStack = 20;
+        carrot.sellPrice = 3;
+        carrot.buyPrice = 10;
+        carrot.texturePath = "assets/consumables/carrot.png";
+        carrot.effects.push_back(ConsumableEffect(EffectType::RestoreHealth, 8));
+        registerItem(carrot);
+    }
+    
     // ========================================
     // 消耗品类物品 (Consumables)
     // 存放目录: assets/consumables/

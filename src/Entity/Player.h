@@ -2,13 +2,15 @@
 #include <SFML/Graphics.hpp>
 #include <iostream>
 #include <vector>
+#include <cmath>
 #include "PlayerStats.h"
 
 // 动画状态枚举
 enum class AnimState {
     Idle,
     Walk,
-    Attack
+    Attack,
+    Hurt    // 受伤状态
 };
 
 // 朝向枚举
@@ -21,10 +23,17 @@ class Player {
 public:
     Player(float x, float y) 
         : currentState(AnimState::Idle)
+        , facing(Direction::Right)
         , currentFrame(0)
         , animTimer(0.0f)
         , frameTime(0.12f)
-        , facing(Direction::Right)
+        , hurtTimer(0.0f)
+        , hurtDuration(0.4f)
+        , isHurt(false)
+        , knockbackVelocity(0.0f, 0.0f)
+        , knockbackTimer(0.0f)
+        , knockbackDuration(0.15f)
+        , isKnockedBack(false)
     {
         // 加载精灵表
         if (!texture.loadFromFile("../../assets/player.png")) {
@@ -46,10 +55,32 @@ public:
         // 更新属性系统
         stats.update(dt);
         
-        // 如果已死亡或体力耗尽，不能移动
+        // 如果已死亡，不能移动
         if (stats.isDead()) {
             setState(AnimState::Idle);
             return;
+        }
+        
+        // 更新受伤计时器（在这里更新，不阻止移动）
+        if (isHurt) {
+            hurtTimer += dt;
+            if (hurtTimer >= hurtDuration) {
+                isHurt = false;
+            }
+        }
+        
+        // 更新击退效果
+        if (isKnockedBack) {
+            knockbackTimer += dt;
+            if (knockbackTimer >= knockbackDuration) {
+                isKnockedBack = false;
+                knockbackVelocity = sf::Vector2f(0.0f, 0.0f);
+            } else {
+                // 应用击退移动（带衰减）
+                float progress = knockbackTimer / knockbackDuration;
+                float decay = 1.0f - progress;  // 线性衰减
+                sprite.move(knockbackVelocity * decay * dt);
+            }
         }
         
         sf::Vector2f movement(0.f, 0.f);
@@ -61,6 +92,11 @@ public:
         // 体力不足时速度减半
         if (stats.isExhausted()) {
             currentSpeed *= 0.5f;
+        }
+        
+        // 击退时减速移动
+        if (isKnockedBack) {
+            currentSpeed *= 0.3f;
         }
 
         // 键盘控制
@@ -86,18 +122,28 @@ public:
         // 更新位置
         sprite.move(movement);
 
-        // 状态切换
+        // 状态切换（受伤动画优先级低于攻击）
         if (currentState != AnimState::Attack) {
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space)) {
                 // 攻击消耗体力
                 if (stats.hasStamina(5.0f)) {
                     stats.consumeStamina(5.0f);
                     setState(AnimState::Attack);
+                    isHurt = false;  // 攻击时取消受伤状态
+                }
+            } else if (isHurt && currentState != AnimState::Hurt) {
+                // 被攻击但还没播放受伤动画
+                setState(AnimState::Hurt);
+            } else if (!isHurt) {
+                // 正常移动/站立
+                if (isMoving) {
+                    setState(AnimState::Walk);
+                } else {
+                    setState(AnimState::Idle);
                 }
             } else if (isMoving) {
+                // 受伤时仍在移动，播放行走动画
                 setState(AnimState::Walk);
-            } else {
-                setState(AnimState::Idle);
             }
         }
 
@@ -229,7 +275,46 @@ public:
     // 获取朝向
     Direction getFacing() const { return facing; }
     
-    // 受到伤害
+    // 受到伤害（带击退效果）
+    void receiveDamage(float damage, const sf::Vector2f& attackerPos, float attackerDodgeReduction = 0.0f) {
+        // 闪避判定
+        if (stats.rollDodge(attackerDodgeReduction)) {
+            std::cout << "闪避成功!" << std::endl;
+            return;
+        }
+        
+        stats.takeDamage(damage);
+        
+        // 触发受伤动画
+        isHurt = true;
+        hurtTimer = 0;
+        setState(AnimState::Hurt);
+        
+        // 计算击退方向（从攻击者指向玩家）
+        sf::Vector2f playerPos = getPosition();
+        sf::Vector2f knockbackDir = playerPos - attackerPos;
+        
+        // 归一化方向
+        float length = std::sqrt(knockbackDir.x * knockbackDir.x + knockbackDir.y * knockbackDir.y);
+        if (length > 0.0f) {
+            knockbackDir /= length;
+        } else {
+            // 如果位置重叠，随机方向
+            knockbackDir = sf::Vector2f(1.0f, 0.0f);
+        }
+        
+        // 设置击退速度（可调整击退力度）
+        float knockbackForce = 400.0f;  // 击退力度
+        knockbackVelocity = knockbackDir * knockbackForce;
+        knockbackTimer = 0.0f;
+        isKnockedBack = true;
+        
+        if (stats.isDead()) {
+            std::cout << "玩家死亡!" << std::endl;
+        }
+    }
+    
+    // 受到伤害（无击退，向后兼容）
     void receiveDamage(float damage, float attackerDodgeReduction = 0.0f) {
         // 闪避判定
         if (stats.rollDodge(attackerDodgeReduction)) {
@@ -239,9 +324,13 @@ public:
         
         stats.takeDamage(damage);
         
+        // 触发受伤动画
+        isHurt = true;
+        hurtTimer = 0;
+        setState(AnimState::Hurt);
+        
         if (stats.isDead()) {
             std::cout << "玩家死亡!" << std::endl;
-            // 可以在这里触发死亡动画
         }
     }
     
@@ -281,6 +370,14 @@ private:
             sf::IntRect(464, 371, 96,  165),
             sf::IntRect(600, 371, 130, 165)
         };
+        
+        // 受伤动画 (4帧) - 第四行，带红色闪烁和后仰效果
+        hurtFrames = {
+            sf::IntRect(68,  559, 105, 117),
+            sf::IntRect(201, 559, 105, 117),
+            sf::IntRect(330, 559, 105, 117),
+            sf::IntRect(455, 559, 114, 117)
+        };
     }
 
     void updateAnimation(float dt) {
@@ -297,6 +394,10 @@ private:
                     setState(AnimState::Idle);
                     return;
                 }
+                if (currentState == AnimState::Hurt) {
+                    // 受伤动画播放完一遍后，根据是否移动切换状态
+                    currentFrame = 0;
+                }
                 currentFrame = 0;
             }
 
@@ -309,6 +410,7 @@ private:
         switch (currentState) {
             case AnimState::Walk:   return walkFrames;
             case AnimState::Attack: return attackFrames;
+            case AnimState::Hurt:   return hurtFrames;
             case AnimState::Idle:
             default:                return idleFrames;
         }
@@ -364,6 +466,18 @@ private:
     std::vector<sf::IntRect> idleFrames;
     std::vector<sf::IntRect> walkFrames;
     std::vector<sf::IntRect> attackFrames;
+    std::vector<sf::IntRect> hurtFrames;  // 受伤动画帧
+    
+    // 受伤状态
+    float hurtTimer;           // 受伤动画计时
+    float hurtDuration;        // 受伤动画持续时间
+    bool isHurt;               // 是否正在受伤
+    
+    // 击退状态
+    sf::Vector2f knockbackVelocity;  // 击退速度
+    float knockbackTimer;            // 击退计时器
+    float knockbackDuration;         // 击退持续时间
+    bool isKnockedBack;              // 是否正在被击退
     
     // 属性系统
     PlayerStats stats;

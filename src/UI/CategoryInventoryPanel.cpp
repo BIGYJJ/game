@@ -27,6 +27,9 @@ CategoryInventoryPanel::CategoryInventoryPanel()
     , lastClickedSlot(-1)
     , playerGold(0)
     , iconLoaded(false)
+    , iconHovered(false)
+    , iconHoverScale(1.0f)
+    , iconTargetScale(1.0f)
     , fontLoaded(false)
 {
     // 计算面板尺寸
@@ -82,17 +85,40 @@ void CategoryInventoryPanel::setIconPosition(float x, float y) {
     iconSprite.setPosition(iconPosition);
 }
 
-void CategoryInventoryPanel::update(float /*dt*/) {
-    // 动画更新
+void CategoryInventoryPanel::update(float dt) {
+    // 图标悬浮动画
+    float scaleSpeed = 8.0f;
+    iconHoverScale += (iconTargetScale - iconHoverScale) * scaleSpeed * dt;
+    
+    // 更新图标缩放（保持中心点）
+    sf::Vector2f iconCenter = iconPosition + sf::Vector2f(
+        iconTexture.getSize().x * ICON_BASE_SCALE / 2.0f,
+        iconTexture.getSize().y * ICON_BASE_SCALE / 2.0f
+    );
+    iconSprite.setScale(ICON_BASE_SCALE * iconHoverScale, ICON_BASE_SCALE * iconHoverScale);
+    iconSprite.setPosition(
+        iconCenter.x - iconTexture.getSize().x * ICON_BASE_SCALE * iconHoverScale / 2.0f,
+        iconCenter.y - iconTexture.getSize().y * ICON_BASE_SCALE * iconHoverScale / 2.0f
+    );
 }
 
 void CategoryInventoryPanel::handleEvent(const sf::Event& event, sf::RenderWindow& window) {
     sf::Vector2i mousePos = sf::Mouse::getPosition(window);
     sf::Vector2f mousePosF(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y));
     
+    // 检查图标悬浮
+    sf::FloatRect iconBounds(iconPosition.x - 5, iconPosition.y - 5, 60, 60);
+    if (iconBounds.contains(mousePosF)) {
+        iconHovered = true;
+        iconTargetScale = 1.15f;
+    } else {
+        iconHovered = false;
+        iconTargetScale = 1.0f;
+    }
+    
     // 检查图标点击
     if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
-        if (!panelOpen && iconSprite.getGlobalBounds().contains(mousePosF)) {
+        if (!panelOpen && iconBounds.contains(mousePosF)) {
             open();
             return;
         }
@@ -274,8 +300,17 @@ void CategoryInventoryPanel::handleDoubleClick(int slotIndex) {
     
     switch (currentCategory) {
         case InventoryCategory::Consumables:
-            // 双击使用消耗品（种子除外）
-            if (!CategoryInventory::isSeed(stack.itemId)) {
+            // 双击种子时种下
+            if (CategoryInventory::isSeed(stack.itemId)) {
+                if (onPlant) {
+                    if (onPlant()) {
+                        inventory->plantSeed(actualSlot);
+                    }
+                } else {
+                    inventory->plantSeed(actualSlot);
+                }
+            } else {
+                // 双击使用消耗品
                 inventory->useItem(currentCategory, actualSlot);
             }
             break;
@@ -466,7 +501,7 @@ void CategoryInventoryPanel::render(sf::RenderWindow& window) {
         window.draw(sortText);
     }
     
-    // 金币显示
+    // 金币显示（移到标题栏右侧，避免与翻页按钮重叠）
     if (fontLoaded) {
         std::stringstream goldSS;
         goldSS << "金币: " << playerGold;
@@ -476,7 +511,9 @@ void CategoryInventoryPanel::render(sf::RenderWindow& window) {
         goldText.setString(sf::String::fromUtf8(goldStr.begin(), goldStr.end()));
         goldText.setCharacterSize(14);
         goldText.setFillColor(sf::Color(255, 215, 0));
-        goldText.setPosition(panelPosition.x + 15, bottomY + 4);
+        // 将金币显示移到标题栏右侧（关闭按钮左边）
+        sf::FloatRect goldBounds = goldText.getLocalBounds();
+        goldText.setPosition(panelPosition.x + panelSize.x - goldBounds.width - 35, panelPosition.y + 8);
         window.draw(goldText);
     }
     

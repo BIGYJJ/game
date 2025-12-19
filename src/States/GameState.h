@@ -2,6 +2,7 @@
 #include "State.h"
 #include "../Entity/Player.h"
 #include "../Entity/Tree.h"
+#include "../Entity/Rabbit.h"
 #include "../World/TileMap.h"
 #include "../World/Camera.h"
 #include "../Systems/TimeSystem.h"
@@ -55,6 +56,9 @@ private:
     // Initialize trees from map
     void initTrees();
     
+    // Initialize rabbits
+    void initRabbits();
+    
     // Initialize item system
     void initItemSystem();
     
@@ -89,6 +93,9 @@ private:
     std::unique_ptr<Camera> camera;
     std::unique_ptr<TimeSystem> timeSystem;
     std::unique_ptr<TreeManager> treeManager;
+    
+    // Rabbit system
+    std::unique_ptr<RabbitManager> rabbitManager;
     
     // Item system - new categorized inventory
     std::unique_ptr<CategoryInventory> categoryInventory;

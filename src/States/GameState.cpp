@@ -1,7 +1,8 @@
-#include "GameState.h"
+﻿#include "GameState.h"
 #include "../Core/Game.h"
 #include <iostream>
 #include <filesystem>  // For path debugging
+#include "../Entity/Rabbit.h"
 
 GameState::GameState(Game* game, MapType mapType) 
     : State(game)
@@ -32,11 +33,18 @@ GameState::GameState(Game* game, MapType mapType)
     treeManager = std::make_unique<TreeManager>();
     treeManager->init("../../assets");
     
+    // Create RabbitManager
+    rabbitManager = std::make_unique<RabbitManager>();
+    rabbitManager->init("../../assets/rabbit_spritesheet.png");
+    
     // Load map
     loadMap(mapType);
     
     // Initialize trees from map objects
     initTrees();
+    
+    // Initialize rabbits
+    initRabbits();
     
     // Set player position to map center
     sf::Vector2i mapSize = tileMap->getMapSize();
@@ -471,6 +479,11 @@ void GameState::update(float dt) {
             player->setPosition(oldPos);
         }
         
+        // Collision detection with rabbits
+        if (rabbitManager && rabbitManager->isCollidingWithAnyRabbit(player->getCollisionBox())) {
+            player->setPosition(oldPos);
+        }
+        
         // Boundary detection
         sf::Vector2f pos = player->getPosition();
         sf::Vector2i mapSize = tileMap->getMapSize();
@@ -510,6 +523,11 @@ void GameState::update(float dt) {
     // Update trees
     if (treeManager) {
         treeManager->update(dt);
+    }
+    
+    // Update rabbits
+    if (rabbitManager && player) {
+        rabbitManager->update(dt, player->getPosition());
     }
     
     // Update dropped items
@@ -556,6 +574,11 @@ void GameState::render(sf::RenderWindow& window) {
         treeManager->render(window, camera->getView());
     }
     
+    // Render rabbits
+    if (rabbitManager && camera) {
+        rabbitManager->render(window, camera->getView());
+    }
+    
     // Render player
     if (player) {
         player->render(window);
@@ -571,10 +594,16 @@ void GameState::render(sf::RenderWindow& window) {
     bool anyPanelOpen = (categoryInventoryPanel && categoryInventoryPanel->isOpen()) ||
                         (equipmentPanel && equipmentPanel->isOpen()) ||
                         (craftingPanel && craftingPanel->isOpen());
-    if (treeManager && camera && !anyPanelOpen) {
+    if (camera && !anyPanelOpen) {
         sf::Vector2i mouseScreenPos = sf::Mouse::getPosition(window);
         sf::Vector2f mouseWorldPos = window.mapPixelToCoords(mouseScreenPos, camera->getView());
-        treeManager->renderTooltips(window, mouseWorldPos);
+        
+        if (treeManager) {
+            treeManager->renderTooltips(window, mouseWorldPos);
+        }
+        if (rabbitManager) {
+            rabbitManager->renderTooltips(window, mouseWorldPos);
+        }
     }
 }
 
@@ -821,8 +850,73 @@ void GameState::initTrees() {
     std::cout << "[Trees] Total trees loaded: " << treeManager->getTreeCount() << std::endl;
 }
 
+void GameState::initRabbits() {
+    if (!rabbitManager || !tileMap) return;
+    
+    // 在当前地图随机生成20只兔子
+    sf::Vector2i mapSize = tileMap->getMapSize();
+    int tileSize = tileMap->getTileSize();
+    
+    rabbitManager->spawnRandomRabbits(20, mapSize, tileSize);
+    
+    // 设置兔子攻击玩家的回调
+    for (auto& rabbit : rabbitManager->getRabbits()) {
+        rabbit->setOnAttack([this](Rabbit& r) {
+            if (!player) return;
+            
+            float damage = r.performAttack();
+            bool usedSkill = r.hasTriggeredSkill();
+            
+            // 玩家闪避判定
+            if (player->getStats().rollDodge(0)) {
+                if (eventLogPanel) {
+                    eventLogPanel->addMessage("闪避了 " + r.getName() + " 的攻击!", EventType::Combat);
+                }
+                std::cout << "[Combat] Player dodged rabbit attack!" << std::endl;
+                return;
+            }
+            
+            // 计算实际伤害
+            float actualDamage = player->getStats().calculateDamageTaken(damage);
+            
+            // 获取兔子位置用于击退计算
+            sf::Vector2f rabbitPos = r.getPosition();
+            sf::FloatRect rabbitBounds = r.getBounds();
+            sf::Vector2f rabbitCenter(rabbitPos.x + rabbitBounds.width / 2.0f, 
+                                      rabbitPos.y + rabbitBounds.height / 2.0f);
+            
+            // 受伤并击退（传入攻击者位置）
+            player->receiveDamage(actualDamage, rabbitCenter);
+            
+            if (eventLogPanel) {
+                std::string attackMsg;
+                if (usedSkill) {
+                    const RabbitSkill& skill = r.getSkill();
+                    attackMsg = r.getName() + " 使用了 [" + skill.name + "]! -" + 
+                               std::to_string(static_cast<int>(actualDamage)) + " HP";
+                } else {
+                    attackMsg = r.getName() + " 攻击了你! -" + 
+                               std::to_string(static_cast<int>(actualDamage)) + " HP";
+                }
+                eventLogPanel->addMessage(attackMsg, EventType::Combat);
+            }
+            
+            std::cout << "[Combat] Rabbit attacked player for " << actualDamage << " damage"
+                      << (usedSkill ? " (SKILL!)" : "") << std::endl;
+            
+            if (player->isDead()) {
+                if (eventLogPanel) {
+                    eventLogPanel->addMessage("你被击败了...", EventType::Combat);
+                }
+            }
+        });
+    }
+    
+    std::cout << "[Rabbits] Spawned " << rabbitManager->getRabbitCount() << " rabbits" << std::endl;
+}
+
 void GameState::handlePlayerAttack() {
-    if (!player || !treeManager) return;
+    if (!player) return;
     
     bool isCurrentlyAttacking = player->isAttacking();
     
@@ -831,11 +925,70 @@ void GameState::handlePlayerAttack() {
         float attackRadius = player->getAttackRadius();
         float damage = player->performAttack();
         
-        auto hitTrees = treeManager->damageTreesInRange(attackCenter, attackRadius, damage);
+        // 检查是否装备了无视防御的武器（斧头）
+        bool ignoreDefense = false;
+        if (playerEquipment && playerEquipment->hasIgnoreDefense()) {
+            ignoreDefense = true;
+        }
         
-        if (!hitTrees.empty()) {
-            std::cout << "[Attack] Hit " << hitTrees.size() << " tree(s) for " 
-                      << damage << " damage" << std::endl;
+        // 攻击树木
+        if (treeManager) {
+            auto hitTrees = treeManager->damageTreesInRange(attackCenter, attackRadius, damage);
+            
+            if (!hitTrees.empty()) {
+                std::cout << "[Attack] Hit " << hitTrees.size() << " tree(s) for " 
+                          << damage << " damage" << (ignoreDefense ? " (ignore defense)" : "") << std::endl;
+            }
+        }
+        
+        // 攻击兔子
+        if (rabbitManager) {
+            auto hitRabbits = rabbitManager->damageRabbitsInRange(attackCenter, attackRadius, damage, ignoreDefense);
+            
+            for (auto* rabbit : hitRabbits) {
+                if (rabbit->isDead()) {
+                    // 兔子死亡，生成掉落物
+                    auto drops = rabbit->generateDrops();
+                    
+                    if (!drops.empty() && droppedItemManager) {
+                        sf::Vector2f rabbitPos = rabbit->getPosition();
+                        droppedItemManager->spawnItems(drops, rabbitPos.x, rabbitPos.y);
+                        
+                        // 添加到事件日志
+                        if (eventLogPanel) {
+                            eventLogPanel->addMessage("击杀了 " + rabbit->getName(), EventType::Combat);
+                            for (const auto& drop : drops) {
+                                const ItemData* data = ItemDatabase::getInstance().getItemData(drop.first);
+                                if (data) {
+                                    eventLogPanel->addItemObtained(data->name, drop.second, drop.first);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 获得经验和金币
+                    int exp = rabbit->getExpReward();
+                    int gold = rabbit->getGoldReward();
+                    
+                    int oldLevel = player->getStats().getLevel();
+                    player->getStats().addExp(exp);
+                    int newLevel = player->getStats().getLevel();
+                    player->getStats().addGold(gold);
+                    
+                    if (eventLogPanel) {
+                        if (exp > 0) eventLogPanel->addExpObtained(exp, "击杀");
+                        if (gold > 0) eventLogPanel->addGoldObtained(gold);
+                        if (newLevel > oldLevel) eventLogPanel->addLevelUp(newLevel);
+                    }
+                    
+                    std::cout << "[Rabbit] Killed! +" << exp << " EXP, +" << gold << " Gold" << std::endl;
+                }
+            }
+            
+            if (!hitRabbits.empty()) {
+                std::cout << "[Attack] Hit " << hitRabbits.size() << " rabbit(s) for " 
+                          << damage << " damage" << std::endl;
+            }
         }
     }
     

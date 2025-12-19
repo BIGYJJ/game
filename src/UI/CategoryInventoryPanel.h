@@ -127,6 +127,12 @@ private:
     sf::Vector2f iconPosition;
     bool iconLoaded;
     
+    // 图标悬浮动画
+    bool iconHovered;
+    float iconHoverScale;
+    float iconTargetScale;
+    static constexpr float ICON_BASE_SCALE = 0.8f;
+    
     // 面板
     sf::Vector2f panelPosition;
     sf::Vector2f panelSize;
