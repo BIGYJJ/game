@@ -2,6 +2,7 @@
 #include "../Core/Game.h"
 #include <iostream>
 #include <filesystem>  // For path debugging
+#include <cmath>       // For sqrt in collision
 #include "../Entity/Rabbit.h"
 
 GameState::GameState(Game* game, MapType mapType) 
@@ -466,22 +467,63 @@ void GameState::update(float dt) {
     
     if (player) {
         sf::Vector2f oldPos = player->getPosition();
+        bool playerWasMoving = player->isMoving();  // 记录玩家是否在主动移动
         
         player->update(dt);
         
-        // Collision detection with tilemap
+        // Collision detection with tilemap (地图碰撞仍然是阻挡型)
         if (tileMap->isColliding(player->getCollisionBox())) {
             player->setPosition(oldPos);
         }
         
-        // Collision detection with trees
+        // Collision detection with trees (树木碰撞仍然是阻挡型)
         if (treeManager && treeManager->isCollidingWithAnyTree(player->getCollisionBox())) {
             player->setPosition(oldPos);
         }
         
-        // Collision detection with rabbits
-        if (rabbitManager && rabbitManager->isCollidingWithAnyRabbit(player->getCollisionBox())) {
-            player->setPosition(oldPos);
+        // ====================================================
+        // 推挤碰撞处理：谁移动谁推开对方
+        // ====================================================
+        if (rabbitManager) {
+            sf::FloatRect playerBox = player->getCollisionBox();
+            
+            if (playerWasMoving) {
+                // 玩家主动移动 → 推开碰到的兔子
+                rabbitManager->pushRabbitsFromRect(playerBox, 1.0f);
+            } else {
+                // 玩家没有移动 → 检查是否有兔子主动撞过来
+                auto movingRabbits = rabbitManager->getMovingRabbitsCollidingWith(playerBox);
+                
+                for (Rabbit* rabbit : movingRabbits) {
+                    // 兔子主动移动碰到玩家 → 推开玩家
+                    sf::FloatRect rabbitBox = rabbit->getCollisionBox();
+                    
+                    sf::Vector2f playerCenter(
+                        playerBox.left + playerBox.width / 2.0f,
+                        playerBox.top + playerBox.height / 2.0f
+                    );
+                    sf::Vector2f rabbitCenter(
+                        rabbitBox.left + rabbitBox.width / 2.0f,
+                        rabbitBox.top + rabbitBox.height / 2.0f
+                    );
+                    
+                    // 推挤方向：从兔子指向玩家
+                    sf::Vector2f pushDir = playerCenter - rabbitCenter;
+                    float length = std::sqrt(pushDir.x * pushDir.x + pushDir.y * pushDir.y);
+                    
+                    if (length > 0.001f) {
+                        pushDir /= length;
+                        
+                        float overlapX = (playerBox.width + rabbitBox.width) / 2.0f - 
+                                        std::abs(playerCenter.x - rabbitCenter.x);
+                        float overlapY = (playerBox.height + rabbitBox.height) / 2.0f - 
+                                        std::abs(playerCenter.y - rabbitCenter.y);
+                        
+                        float pushDistance = std::min(overlapX, overlapY) + 2.0f;
+                        player->applyPush(pushDir * pushDistance);
+                    }
+                }
+            }
         }
         
         // Boundary detection
@@ -861,7 +903,7 @@ void GameState::initRabbits() {
     
     // 设置兔子攻击玩家的回调
     for (auto& rabbit : rabbitManager->getRabbits()) {
-        rabbit->setOnAttack([this](Rabbit& r) {
+        rabbit->setOnAttackRabbit([this](Rabbit& r){
             if (!player) return;
             
             float damage = r.performAttack();
@@ -891,7 +933,7 @@ void GameState::initRabbits() {
             if (eventLogPanel) {
                 std::string attackMsg;
                 if (usedSkill) {
-                    const RabbitSkill& skill = r.getSkill();
+                    const RabbitSkill& skill = r.getRabbitSkill();
                     attackMsg = r.getName() + " 使用了 [" + skill.name + "]! -" + 
                                std::to_string(static_cast<int>(actualDamage)) + " HP";
                 } else {

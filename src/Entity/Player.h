@@ -171,6 +171,23 @@ public:
         sprite.setPosition(pos);
     }
     
+    // 判断玩家是否正在主动移动（用于碰撞响应）
+    bool isMoving() const {
+        return sf::Keyboard::isKeyPressed(sf::Keyboard::W) ||
+               sf::Keyboard::isKeyPressed(sf::Keyboard::A) ||
+               sf::Keyboard::isKeyPressed(sf::Keyboard::S) ||
+               sf::Keyboard::isKeyPressed(sf::Keyboard::D) ||
+               sf::Keyboard::isKeyPressed(sf::Keyboard::Up) ||
+               sf::Keyboard::isKeyPressed(sf::Keyboard::Down) ||
+               sf::Keyboard::isKeyPressed(sf::Keyboard::Left) ||
+               sf::Keyboard::isKeyPressed(sf::Keyboard::Right);
+    }
+    
+    // 被推挤时调用（移动位置）
+    void applyPush(const sf::Vector2f& pushVector) {
+        sprite.move(pushVector);
+    }
+    
     // ========================================
     // 碰撞检测
     // ========================================

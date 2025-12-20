@@ -16,6 +16,7 @@ set(SOURCES
     src/World/TileMap.cpp
     src/Entity/PlayerStats.cpp
     src/Entity/Tree.cpp
+    src/Entity/Monster.cpp
     src/Entity/Rabbit.cpp
     src/UI/StatsPanel.cpp
     src/Items/Item.cpp
@@ -39,6 +40,7 @@ set(HEADERS
     src/World/TileMap.h
     src/World/Camera.h
     src/Entity/Tree.h
+    src/Entity/Monster.h
     src/Entity/Rabbit.h
     src/Systems/TimeSystem.h
     src/UI/StatsPanel.h
