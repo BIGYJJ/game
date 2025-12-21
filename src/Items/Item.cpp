@@ -81,7 +81,7 @@ void ItemDatabase::initialize() {
         ItemData rabbitFur;
         rabbitFur.id = "rabbit_fur";
         rabbitFur.name = "兔毛";
-        rabbitFur.description = "柔软的兔毛，可用于制作衣物";
+        rabbitFur.description = "柔软的兔毛。可作为孵化兔子精元时的强化剂，提升稀有资质概率！";
         rabbitFur.type = ItemType::Material;
         rabbitFur.rarity = ItemRarity::Common;
         rabbitFur.maxStack = 99;
@@ -119,6 +119,21 @@ void ItemDatabase::initialize() {
         carrot.texturePath = "assets/consumables/carrot.png";
         carrot.effects.push_back(ConsumableEffect(EffectType::RestoreHealth, 8));
         registerItem(carrot);
+    }
+    
+    {
+        ItemData bean;
+        bean.id = "bean";
+        bean.name = "豆子";
+        bean.description = "新鲜的豆子，可以食用或种植";
+        bean.type = ItemType::Consumable;
+        bean.rarity = ItemRarity::Common;
+        bean.maxStack = 20;
+        bean.sellPrice = 2;
+        bean.buyPrice = 8;
+        bean.texturePath = "assets/consumables/bean.png";
+        bean.effects.push_back(ConsumableEffect(EffectType::RestoreHealth, 5));
+        registerItem(bean);
     }
     
     // ========================================
@@ -397,6 +412,94 @@ void ItemDatabase::initialize() {
         ironShield.buyPrice = 170;
         ironShield.texturePath = "assets/equipment/iron_shield.png";
         registerItem(ironShield);
+    }
+    
+    // ========================================
+    // 宠物相关物品 (Pet Items)
+    // 存放目录: assets/pet/
+    // ========================================
+    
+    // 兔子精元
+    {
+        ItemData rabbitEssence;
+        rabbitEssence.id = "rabbit_essence";
+        rabbitEssence.name = "兔子精元";
+        rabbitEssence.description = "蕴含兔子灵魂的神秘精元，可用于孵化宠物兔。掉落概率：2%";
+        rabbitEssence.type = ItemType::Material;
+        rabbitEssence.rarity = ItemRarity::Rare;
+        rabbitEssence.maxStack = 99;
+        rabbitEssence.sellPrice = 50;
+        rabbitEssence.buyPrice = 200;
+        rabbitEssence.texturePath = "assets/pet/rabbit_essence.png";
+        registerItem(rabbitEssence);
+    }
+    
+    // 孵化强化剂 - 通用（已废弃，保留兼容）
+    {
+        ItemData hatchEnhancer;
+        hatchEnhancer.id = "hatch_enhancer";
+        hatchEnhancer.name = "通用强化剂";
+        hatchEnhancer.description = "通用的孵化强化剂。注意：每种精元有对应的特殊强化剂材料！";
+        hatchEnhancer.type = ItemType::Consumable;
+        hatchEnhancer.rarity = ItemRarity::Uncommon;
+        hatchEnhancer.maxStack = 99;
+        hatchEnhancer.sellPrice = 20;
+        hatchEnhancer.buyPrice = 80;
+        hatchEnhancer.texturePath = "assets/pet/hatch_enhancer.png";
+        registerItem(hatchEnhancer);
+    }
+    
+    // 注：兔毛(rabbit_fur)已在上面定义，它同时作为兔子精元的专用强化剂
+    // 每种精元对应的强化剂材料：
+    //   - 兔子精元 -> 兔毛 (rabbit_fur)
+    //   - 史莱姆精元 -> 粘液 (slime_goo) [未来添加]
+    //   - 小鸡精元 -> 羽毛 (feather) [未来添加]
+    
+    // 宠物洗涤剂
+    {
+        ItemData petCleanser;
+        petCleanser.id = "pet_cleanser";
+        petCleanser.name = "宠物洗涤剂";
+        petCleanser.description = "可重置宠物资质和属性。将宠物变回1级，重新随机资质（受幸运值影响）";
+        petCleanser.type = ItemType::Consumable;
+        petCleanser.rarity = ItemRarity::Rare;
+        petCleanser.maxStack = 20;
+        petCleanser.sellPrice = 100;
+        petCleanser.buyPrice = 500;
+        petCleanser.texturePath = "assets/pet/pet_cleanser.png";
+        registerItem(petCleanser);
+    }
+    
+    // 宠物经验药水
+    {
+        ItemData petExpPotion;
+        petExpPotion.id = "pet_exp_potion";
+        petExpPotion.name = "宠物经验药水";
+        petExpPotion.description = "给宠物服用可获得500点经验值";
+        petExpPotion.type = ItemType::Consumable;
+        petExpPotion.rarity = ItemRarity::Uncommon;
+        petExpPotion.maxStack = 20;
+        petExpPotion.sellPrice = 30;
+        petExpPotion.buyPrice = 120;
+        petExpPotion.texturePath = "assets/pet/pet_exp_potion.png";
+        petExpPotion.effects.push_back(ConsumableEffect(EffectType::BuffExp, 500));
+        registerItem(petExpPotion);
+    }
+    
+    // 宠物生命药水
+    {
+        ItemData petHealthPotion;
+        petHealthPotion.id = "pet_health_potion";
+        petHealthPotion.name = "宠物生命药水";
+        petHealthPotion.description = "给宠物服用可恢复50点生命值";
+        petHealthPotion.type = ItemType::Consumable;
+        petHealthPotion.rarity = ItemRarity::Common;
+        petHealthPotion.maxStack = 20;
+        petHealthPotion.sellPrice = 15;
+        petHealthPotion.buyPrice = 60;
+        petHealthPotion.texturePath = "assets/pet/pet_health_potion.png";
+        petHealthPotion.effects.push_back(ConsumableEffect(EffectType::RestoreHealth, 50));
+        registerItem(petHealthPotion);
     }
     
     initialized = true;

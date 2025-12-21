@@ -137,11 +137,11 @@ private:
     sf::Vector2f panelPosition;
     sf::Vector2f panelSize;
     
-    // 格子参数
-    static constexpr float SLOT_SIZE = 60.0f;
-    static constexpr float SLOT_PADDING = 5.0f;
-    static constexpr float PANEL_PADDING = 20.0f;
-    static constexpr float TAB_HEIGHT = 35.0f;
+    // 格子参数 - 增大尺寸
+    static constexpr float SLOT_SIZE = 72.0f;      // 从60增大到72
+    static constexpr float SLOT_PADDING = 6.0f;    // 从5增大到6
+    static constexpr float PANEL_PADDING = 24.0f;  // 从20增大到24
+    static constexpr float TAB_HEIGHT = 42.0f;     // 从35增大到42
     
     // 字体
     sf::Font font;

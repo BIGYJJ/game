@@ -7,6 +7,7 @@
  <tile id="0">
   <properties>
    <property name="HP" type="int" value="30"/>
+   <property name="base" value="build"/>
    <property name="defense" type="int" value="5"/>
    <property name="drop1_Probability" type="float" value="0.75"/>
    <property name="drop2_Probability" type="float" value="0.5"/>
@@ -28,6 +29,7 @@
  <tile id="1">
   <properties>
    <property name="HP" type="int" value="40"/>
+   <property name="base" value="build"/>
    <property name="defense" type="int" value="5"/>
    <property name="drop1_Probability" type="float" value="0.75"/>
    <property name="drop2_Probability" type="float" value="0.5"/>
@@ -50,6 +52,7 @@
  <tile id="2">
   <properties>
    <property name="HP" type="int" value="100"/>
+   <property name="base" value="build"/>
    <property name="defense" type="int" value="5"/>
    <property name="drop1_Probability" type="float" value="0.75"/>
    <property name="drop2_Probability" type="float" value="0.5"/>
@@ -72,6 +75,7 @@
  <tile id="3">
   <properties>
    <property name="HP" type="int" value="30"/>
+   <property name="base" value="build"/>
    <property name="defense" type="int" value="5"/>
    <property name="drop1_Probability" type="float" value="0.75"/>
    <property name="drop2_Probability" type="float" value="0.5"/>

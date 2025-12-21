@@ -35,11 +35,13 @@ Rabbit::Rabbit()
     rabbitDrops.push_back(RabbitDrop("rabbit_fur", "兔毛", 1, 2, 0.30f));
     rabbitDrops.push_back(RabbitDrop("carrot", "胡萝卜", 1, 2, 0.20f));
     rabbitDrops.push_back(RabbitDrop("rabbit_meat", "兔肉", 1, 1, 0.10f));
+    rabbitDrops.push_back(RabbitDrop("rabbit_essence", "兔子精元", 1, 1, 0.02f));  // 2%掉落宠物精元
     
     // 同时添加到父类的掉落列表
     drops.push_back(MonsterDrop("rabbit_fur", "兔毛", 1, 2, 0.30f));
     drops.push_back(MonsterDrop("carrot", "胡萝卜", 1, 2, 0.20f));
     drops.push_back(MonsterDrop("rabbit_meat", "兔肉", 1, 1, 0.10f));
+    drops.push_back(MonsterDrop("rabbit_essence", "兔子精元", 1, 1, 0.02f));  // 2%掉落宠物精元
     
     // 设置父类技能
     skill = MonsterSkill("bite", "撕咬", "凶猛撕咬，造成双倍伤害", 2.0f, 0.10f, sf::Color(255, 80, 80));

@@ -122,11 +122,11 @@ void DroppedItem::render(sf::RenderWindow& window) {
     if (hasTexture) {
         window.draw(sprite);
     } else {
-        // 绘制占位符
-        sf::RectangleShape placeholder(sf::Vector2f(32, 32));
-        placeholder.setPosition(position.x - 16, position.y - 16 + floatOffset);
+        // 绘制占位符（2倍大小）
+        sf::RectangleShape placeholder(sf::Vector2f(64, 64));
+        placeholder.setPosition(position.x - 32, position.y - 32 + floatOffset);
         placeholder.setFillColor(sf::Color(150, 100, 50, 200));
-        placeholder.setOutlineThickness(1);
+        placeholder.setOutlineThickness(2);
         placeholder.setOutlineColor(sf::Color::White);
         window.draw(placeholder);
     }
@@ -141,7 +141,8 @@ sf::FloatRect DroppedItem::getBounds() const {
     if (hasTexture) {
         return sprite.getGlobalBounds();
     }
-    return sf::FloatRect(position.x - 16, position.y - 16, 32, 32);
+    // 占位符边界（2倍大小）
+    return sf::FloatRect(position.x - 32, position.y - 32, 64, 64);
 }
 
 bool DroppedItem::isInPickupRange(const sf::Vector2f& point, float range) const {
@@ -158,6 +159,8 @@ void DroppedItem::setTexture(const sf::Texture* tex) {
         sf::Vector2u size = texture->getSize();
         sprite.setOrigin(size.x / 2.0f, size.y / 2.0f);
         sprite.setPosition(position);
+        // 增大显示大小（2倍）
+        sprite.setScale(2.0f, 2.0f);
         hasTexture = true;
     }
 }

@@ -3,7 +3,7 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "part1.tmj",
+    "activeFile": "part_3.tsx",
     "expandedProjectPaths": [
     ],
     "file.lastUsedOpenFilter": "全部文件 (*)",
@@ -28,11 +28,11 @@
             }
         },
         "part1.tmj": {
-            "scale": 0.75,
+            "scale": 1.5,
             "selectedLayer": 1,
             "viewCenter": {
-                "x": 537.9999999999999,
-                "y": 1056
+                "x": 1476.3333333333333,
+                "y": 825.3333333333333
             }
         },
         "part1.tmx": {
@@ -46,6 +46,16 @@
         "part_1.tsx": {
             "dynamicWrapping": false,
             "scaleInDock": 1
+        },
+        "part_2.tsx": {
+            "dynamicWrapping": false,
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "part_3.tsx": {
+            "dynamicWrapping": false,
+            "scaleInDock": 1,
+            "scaleInEditor": 1
         },
         "tiled/123.tmj": {
             "scale": 0.28833984375,
@@ -61,24 +71,31 @@
             "scaleInEditor": 1
         }
     },
-    "last.imagePath": "D:/game/assets/game_source/tree",
+    "last.imagePath": "D:/game/assets/Cute_Fantasy_Free/Outdoor decoration",
     "map.height": 50,
     "map.lastUsedFormat": "json",
     "map.width": 80,
     "openFiles": [
         "part1.tmj",
-        "tree.tsx"
+        "tree.tsx",
+        "part_3.tsx"
     ],
     "project": "1.tiled-project",
-    "property.type": "int",
+    "property.type": "bool",
     "recentFiles": [
-        "tree.tsx",
         "part1.tmj",
+        "tree.tsx",
+        "part_3.tsx",
+        "part_2.tsx",
         "part1.tmx",
         "1.tsx",
         "D:/game/assets/map/farm.tmj",
         "tiled/123.tmj"
     ],
     "tileset.lastUsedFormat": "tsx",
-    "tileset.type": 1
+    "tileset.tileSize": {
+        "height": 32,
+        "width": 32
+    },
+    "tileset.type": 0
 }

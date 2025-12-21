@@ -742,6 +742,8 @@ bool TileMap::loadTsxFile(const std::string& tsxPath, TilesetInfo& ts) {
                     prop.name = propValue;
                 } else if (propName == "type") {
                     prop.type = propValue;
+                } else if (propName == "base") {
+                    prop.base = propValue;
                 } else if (propName == "HP") {
                     prop.hp = std::stoi(propValue);
                 } else if (propName == "defense") {
@@ -756,6 +758,25 @@ bool TileMap::loadTsxFile(const std::string& tsxPath, TilesetInfo& ts) {
                     prop.goldMin = std::stoi(propValue);
                 } else if (propName == "gold_max") {
                     prop.goldMax = std::stoi(propValue);
+                } else if (propName == "allow_pick") {
+                    prop.allowPickup = (propValue == "true" || propValue == "1");
+                } else if (propName == "pickup_object") {
+                    // 移除引号
+                    prop.pickupObject = propValue;
+                    if (prop.pickupObject.size() >= 2 && 
+                        prop.pickupObject.front() == '"' && prop.pickupObject.back() == '"') {
+                        prop.pickupObject = prop.pickupObject.substr(1, prop.pickupObject.size() - 2);
+                    }
+                    // 也添加到dropTypes中
+                    if (!prop.pickupObject.empty()) {
+                        prop.dropTypes.push_back(prop.pickupObject);
+                    }
+                } else if (propName == "count_min") {
+                    prop.countMin = std::stoi(propValue);
+                } else if (propName == "count_max") {
+                    prop.countMax = std::stoi(propValue);
+                } else if (propName == "probability") {
+                    prop.probability = std::stof(propValue);
                 } else if (propName == "drop_type") {
                     // 解析掉落类型列表，格式: "\"wood\",\"seed\",\"stick\""
                     std::string dropStr = propValue;
@@ -899,6 +920,45 @@ bool TileMap::loadTsxFile(const std::string& tsxPath, TilesetInfo& ts) {
     if (ts.texture.loadFromFile(imgFullPath)) {
         ts.loaded = true;
         ts.imagePath = imgFullPath;
+        
+        // ========================================
+        // 为所有TileProperty创建独立贴图（从spritesheet提取）
+        // ========================================
+        sf::Image fullImage = ts.texture.copyToImage();
+        
+        for (auto& prop : ts.tileProperties) {
+            // 计算在spritesheet中的位置
+            int cols = ts.columns > 0 ? ts.columns : 1;
+            int texX = (prop.localId % cols) * ts.tileWidth;
+            int texY = (prop.localId / cols) * ts.tileHeight;
+            prop.textureRect = sf::IntRect(texX, texY, ts.tileWidth, ts.tileHeight);
+            
+            // 检查边界
+            if (texX + ts.tileWidth > (int)fullImage.getSize().x ||
+                texY + ts.tileHeight > (int)fullImage.getSize().y) {
+                std::cout << "     [Tile " << prop.localId << "] Out of bounds, skipped" << std::endl;
+                continue;
+            }
+            
+            // 创建独立贴图
+            sf::Image subImg;
+            subImg.create(ts.tileWidth, ts.tileHeight);
+            
+            for (int y = 0; y < ts.tileHeight; ++y) {
+                for (int x = 0; x < ts.tileWidth; ++x) {
+                    sf::Color pixel = fullImage.getPixel(texX + x, texY + y);
+                    subImg.setPixel(x, y, pixel);
+                }
+            }
+            
+            prop.texture = std::make_shared<sf::Texture>();
+            if (prop.texture->loadFromImage(subImg)) {
+                prop.hasTexture = true;
+                std::cout << "     [Tile " << prop.localId << "] Extracted from spritesheet: (" 
+                          << texX << ", " << texY << ", " << ts.tileWidth << ", " << ts.tileHeight << ")" << std::endl;
+            }
+        }
+        
         return true;
     }
     
@@ -914,6 +974,45 @@ bool TileMap::loadTsxFile(const std::string& tsxPath, TilesetInfo& ts) {
         if (ts.texture.loadFromFile(altPath)) {
             ts.loaded = true;
             ts.imagePath = altPath;
+            
+            // ========================================
+            // 为所有TileProperty创建独立贴图（从spritesheet提取）
+            // ========================================
+            sf::Image fullImage = ts.texture.copyToImage();
+            
+            for (auto& prop : ts.tileProperties) {
+                // 计算在spritesheet中的位置
+                int cols = ts.columns > 0 ? ts.columns : 1;
+                int texX = (prop.localId % cols) * ts.tileWidth;
+                int texY = (prop.localId / cols) * ts.tileHeight;
+                prop.textureRect = sf::IntRect(texX, texY, ts.tileWidth, ts.tileHeight);
+                
+                // 检查边界
+                if (texX + ts.tileWidth > (int)fullImage.getSize().x ||
+                    texY + ts.tileHeight > (int)fullImage.getSize().y) {
+                    std::cout << "     [Tile " << prop.localId << "] Out of bounds, skipped" << std::endl;
+                    continue;
+                }
+                
+                // 创建独立贴图
+                sf::Image subImg;
+                subImg.create(ts.tileWidth, ts.tileHeight);
+                
+                for (int y = 0; y < ts.tileHeight; ++y) {
+                    for (int x = 0; x < ts.tileWidth; ++x) {
+                        sf::Color pixel = fullImage.getPixel(texX + x, texY + y);
+                        subImg.setPixel(x, y, pixel);
+                    }
+                }
+                
+                prop.texture = std::make_shared<sf::Texture>();
+                if (prop.texture->loadFromImage(subImg)) {
+                    prop.hasTexture = true;
+                    std::cout << "     [Tile " << prop.localId << "] Extracted from spritesheet: (" 
+                              << texX << ", " << texY << ", " << ts.tileWidth << ", " << ts.tileHeight << ")" << std::endl;
+                }
+            }
+            
             return true;
         }
     }

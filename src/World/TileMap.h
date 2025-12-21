@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <algorithm>
 
 // ============================================================================
 // TileMap - Supports loading Tiled exported .tmj/.json files
@@ -30,11 +31,12 @@ struct Tile {
     Tile() : id(0), textureIndex(0), texCoords(0, 0), type(TileType::Ground) {}
 };
 
-// 从tsx文件读取的Tile属性（用于树木、建筑等对象）
+// 从tsx文件读取的Tile属性（用于树木、建筑、植物等对象）
 struct TileProperty {
     int localId;                    // tile在tileset中的ID
-    std::string name;               // 例如 "tree1", "apple_tree"
-    std::string type;               // 例如 "tree", "rock", "building"
+    std::string name;               // 例如 "tree1", "apple_tree", "carrot_plant"
+    std::string type;               // 例如 "tree", "stone_build", "plant"
+    std::string base;               // 基类类型 "build", "plant" 等
     int hp;                         // 生命值
     int defense;                    // 防御力
     int dropMax;                    // 最大掉落数量
@@ -48,12 +50,33 @@ struct TileProperty {
     int goldMin;                    // 最小金币
     int goldMax;                    // 最大金币
     
+    // === 植物相关属性（wild_plants类型使用）===
+    bool allowPickup;               // 是否允许拾取
+    std::string pickupObject;       // 拾取后获得的物品ID
+    int countMin;                   // 最小数量
+    int countMax;                   // 最大数量
+    float probability;              // 生成概率 (0-1)
+    
+    // === 碰撞盒（从objectgroup读取）===
+    bool hasCollisionBox;           // 是否有自定义碰撞盒
+    float collisionX;               // 碰撞盒X偏移
+    float collisionY;               // 碰撞盒Y偏移
+    float collisionWidth;           // 碰撞盒宽度
+    float collisionHeight;          // 碰撞盒高度
+    
     // 贴图（使用shared_ptr避免复制时失效）
     std::shared_ptr<sf::Texture> texture;
-    bool hasTexture;                // 是否有独立贴图
+    bool hasTexture;                // 是否有贴图
+    
+    // === Spritesheet支持（仅用于记录原始位置）===
+    sf::IntRect textureRect;        // 在spritesheet中的位置（供调试）
     
     TileProperty() : localId(0), hp(30), defense(5), dropMax(3), 
-                     expMin(0), expMax(0), goldMin(0), goldMax(0), hasTexture(false) {}
+                     expMin(0), expMax(0), goldMin(0), goldMax(0),
+                     allowPickup(false), countMin(1), countMax(1), probability(1.0f),
+                     hasCollisionBox(false), collisionX(0), collisionY(0), 
+                     collisionWidth(0), collisionHeight(0), hasTexture(false),
+                     textureRect(0, 0, 32, 32) {}
 };
 
 struct TilesetInfo {
@@ -146,6 +169,45 @@ public:
     
     // 清除对象（当TreeManager接管树木渲染后调用，避免重复渲染）
     void clearObjects() { objects.clear(); }
+    
+    // 移除树木类型的对象（当TreeManager接管树木渲染后调用）
+    void removeTreeObjects() {
+        objects.erase(
+            std::remove_if(objects.begin(), objects.end(), 
+                [](const MapObject& obj) {
+                    if (!obj.tileProperty) return false;
+                    return obj.tileProperty->type == "tree";
+                }),
+            objects.end()
+        );
+    }
+    
+    // 移除石头建筑类型的对象（当StoneBuildManager接管渲染后调用）
+    void removeStoneObjects() {
+        objects.erase(
+            std::remove_if(objects.begin(), objects.end(), 
+                [](const MapObject& obj) {
+                    if (!obj.tileProperty) return false;
+                    return obj.tileProperty->type == "stone_build" ||
+                           obj.tileProperty->name.find("stone_build") != std::string::npos;
+                }),
+            objects.end()
+        );
+    }
+    
+    // 移除野生植物类型的对象（当WildPlantManager接管渲染后调用）
+    void removeWildPlantObjects() {
+        objects.erase(
+            std::remove_if(objects.begin(), objects.end(), 
+                [](const MapObject& obj) {
+                    if (!obj.tileProperty) return false;
+                    return obj.tileProperty->type == "wild_plants" ||
+                           obj.tileProperty->name.find("carrot") != std::string::npos ||
+                           obj.tileProperty->name.find("bean") != std::string::npos;
+                }),
+            objects.end()
+        );
+    }
 
 private:
     // ========================================

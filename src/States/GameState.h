@@ -3,6 +3,8 @@
 #include "../Entity/Player.h"
 #include "../Entity/Tree.h"
 #include "../Entity/Rabbit.h"
+#include "../Entity/StoneBuild.h"
+#include "../Entity/WildPlant.h"
 #include "../World/TileMap.h"
 #include "../World/Camera.h"
 #include "../Systems/TimeSystem.h"
@@ -10,12 +12,14 @@
 #include "../UI/InventoryPanel.h"
 #include "../UI/CategoryInventoryPanel.h"
 #include "../UI/EventLogPanel.h"
+#include "../UI/PetPanel.h"
 #include "../Items/Item.h"
 #include "../Items/Inventory.h"
 #include "../Items/CategoryInventory.h"
 #include "../Items/Equipment.h"
 #include "../Items/Crafting.h"
 #include "../Items/DroppedItem.h"
+#include "../Pet/PetManager.h"
 #include <memory>
 #include <string>
 #include <random>
@@ -56,17 +60,29 @@ private:
     // Initialize trees from map
     void initTrees();
     
+    // Initialize stone builds from map
+    void initStoneBuilds();
+    
+    // Initialize wild plants from map
+    void initWildPlants();
+    
     // Initialize rabbits
     void initRabbits();
     
     // Initialize item system
     void initItemSystem();
     
+    // Initialize pet system
+    void initPetSystem();
+    
     // Handle player attack
     void handlePlayerAttack();
     
     // Handle item pickup
     void handleItemPickup();
+    
+    // Handle wild plant pickup (F key)
+    void handlePlantPickup();
     
     // Use consumable item (callback)
     bool onUseItem(const ItemStack& item, const ItemData* data);
@@ -83,6 +99,18 @@ private:
     // Unequip item callback
     void onUnequipItem(EquipmentSlot slot);
     
+    // Pet hatch callback
+    bool onHatchPet(int petTypeId, int enhancerCount);
+    
+    // Pet wash callback
+    bool onWashPet(int slotIndex, float playerLuck);
+    
+    // Pet switch callback
+    bool onSwitchPet(int slotIndex);
+    
+    // Update pet panel item counts
+    void updatePetPanelItemCounts();
+    
     // Get map name string
     std::string getMapName(MapType mapType) const;
 
@@ -93,6 +121,12 @@ private:
     std::unique_ptr<Camera> camera;
     std::unique_ptr<TimeSystem> timeSystem;
     std::unique_ptr<TreeManager> treeManager;
+    
+    // Stone build system
+    std::unique_ptr<StoneBuildManager> stoneBuildManager;
+    
+    // Wild plant system
+    std::unique_ptr<WildPlantManager> wildPlantManager;
     
     // Rabbit system
     std::unique_ptr<RabbitManager> rabbitManager;
@@ -110,6 +144,11 @@ private:
     std::unique_ptr<EquipmentPanel> equipmentPanel;
     std::unique_ptr<CraftingPanel> craftingPanel;
     std::unique_ptr<EventLogPanel> eventLogPanel;
+    std::unique_ptr<PetPanel> petPanel;
+    std::unique_ptr<HatchPanel> hatchPanel;
+    
+    // Pet system
+    std::unique_ptr<PetManager> petManager;
     
     // Current map type
     MapType currentMap;
@@ -119,6 +158,12 @@ private:
     
     // Item pickup range
     static constexpr float PICKUP_RANGE = 50.0f;
+    
+    // Plant pickup range
+    static constexpr float PLANT_PICKUP_RANGE = 60.0f;
+    
+    // Plant pickup key state
+    bool pickupKeyPressed = false;
     
     // Random number generator for seed planting
     std::mt19937 rng;

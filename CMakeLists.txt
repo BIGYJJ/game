@@ -18,6 +18,9 @@ set(SOURCES
     src/Entity/Tree.cpp
     src/Entity/Monster.cpp
     src/Entity/Rabbit.cpp
+    # 新增建筑和植物系统
+    src/Entity/StoneBuild.cpp
+    src/Entity/WildPlant.cpp
     src/UI/StatsPanel.cpp
     src/Items/Item.cpp
     src/Items/Inventory.cpp
@@ -28,6 +31,11 @@ set(SOURCES
     src/Items/CategoryInventory.cpp
     src/Items/Crafting.cpp
     src/Items/Equipment.cpp
+    # 宠物系统
+    src/Pet/Pet.cpp
+    src/Pet/PetRabbit.cpp
+    src/Pet/PetManager.cpp
+    src/UI/PetPanel.cpp
 )
 
 # 头文件（帮助IDE识别）
@@ -42,6 +50,9 @@ set(HEADERS
     src/Entity/Tree.h
     src/Entity/Monster.h
     src/Entity/Rabbit.h
+    # 新增建筑和植物系统
+    src/Entity/StoneBuild.h
+    src/Entity/WildPlant.h
     src/Systems/TimeSystem.h
     src/UI/StatsPanel.h
     # 物品和背包系统
@@ -54,6 +65,11 @@ set(HEADERS
     src/UI/InventoryPanel.h
     src/UI/EventLogPanel.h
     src/UI/CategoryInventoryPanel.h
+    # 宠物系统
+    src/Pet/Pet.h
+    src/Pet/PetRabbit.h
+    src/Pet/PetManager.h
+    src/UI/PetPanel.h
 )
 
 # 创建可执行文件
@@ -97,7 +113,7 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 
 # 编译选项
 if(MSVC)
-    target_compile_options(${PROJECT_NAME} PRIVATE /W4)
+    target_compile_options(${PROJECT_NAME} PRIVATE /W4 /utf-8)
 else()
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra)
 endif()

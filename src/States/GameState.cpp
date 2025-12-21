@@ -44,6 +44,18 @@ GameState::GameState(Game* game, MapType mapType)
     // Initialize trees from map objects
     initTrees();
     
+    // Initialize stone builds from map objects
+    stoneBuildManager = std::make_unique<StoneBuildManager>();
+    stoneBuildManager->init("../../assets");
+    initStoneBuilds();
+    tileMap->removeStoneObjects();  // 由StoneBuildManager接管渲染
+    
+    // Initialize wild plants from map objects
+    wildPlantManager = std::make_unique<WildPlantManager>();
+    wildPlantManager->init("../../assets");
+    initWildPlants();
+    tileMap->removeWildPlantObjects();  // 由WildPlantManager接管渲染
+    
     // Initialize rabbits
     initRabbits();
     
@@ -63,16 +75,22 @@ GameState::GameState(Game* game, MapType mapType)
     // Initialize UI
     initUI(game->getWindow());
     
+    // Initialize Pet System
+    initPetSystem();
+    
     std::cout << "[OK] Player Position: (" << player->getPosition().x 
               << ", " << player->getPosition().y << ")" << std::endl;
     std::cout << "\nControls:" << std::endl;
     std::cout << "  WASD/Arrows - Move" << std::endl;
-    std::cout << "  Space       - Attack (chop trees!)" << std::endl;
+    std::cout << "  Space       - Attack (chop trees, mine stones!)" << std::endl;
+    std::cout << "  V           - Pickup wild plants" << std::endl;
     std::cout << "  Tab         - Toggle Stats Panel" << std::endl;
     std::cout << "  I/B         - Toggle Inventory (3 categories)" << std::endl;
     std::cout << "  1/2/3       - Switch inventory category" << std::endl;
     std::cout << "  E           - Toggle Equipment Panel" << std::endl;
     std::cout << "  C           - Toggle Crafting Workshop" << std::endl;
+    std::cout << "  P           - Toggle Pet Panel" << std::endl;
+    std::cout << "  H           - Toggle Hatch Panel" << std::endl;
     std::cout << "  F1 - Farm Map | F2 - Forest Map | F3 - Reload" << std::endl;
     std::cout << "  ESC - Exit" << std::endl;
     std::cout << "========================================\n" << std::endl;
@@ -197,6 +215,8 @@ void GameState::initItemSystem() {
     categoryInventory->addItem("stone", 5);
     categoryInventory->addItem("apple", 3);
     categoryInventory->addItem("seed", 3);
+    categoryInventory->addItem("rabbit_essence", 1);  // 初始赠送一个兔子精元
+    categoryInventory->addItem("rabbit_fur", 10);     // 初始赠送一些兔毛作为强化剂
     
     std::cout << "[ItemSystem] Initialized successfully" << std::endl;
 }
@@ -308,6 +328,8 @@ void GameState::initUI(sf::RenderWindow& window) {
     std::cout << "  - I/B: 分类背包 (材料/消耗品/装备)" << std::endl;
     std::cout << "  - E: 装备栏" << std::endl;
     std::cout << "  - C: 工作台/合成" << std::endl;
+    std::cout << "  - P: 宠物栏" << std::endl;
+    std::cout << "  - H: 孵化栏" << std::endl;
 }
 
 void GameState::loadMap(MapType mapType) {
@@ -344,6 +366,10 @@ void GameState::loadMap(MapType mapType) {
 }
 
 void GameState::handleInput(const sf::Event& event) {
+    // 记录面板状态（用于检测打开事件）
+    bool petWasOpen = petPanel && petPanel->isOpen();
+    bool hatchWasOpen = hatchPanel && hatchPanel->isOpen();
+    
     // 处理分类背包面板事件
     if (categoryInventoryPanel) {
         categoryInventoryPanel->handleEvent(event, game->getWindow());
@@ -368,6 +394,30 @@ void GameState::handleInput(const sf::Event& event) {
         }
     }
     
+    // 处理宠物面板事件
+    if (petPanel) {
+        petPanel->handleEvent(event, game->getWindow());
+        // 如果刚刚打开，更新物品数量
+        if (!petWasOpen && petPanel->isOpen()) {
+            updatePetPanelItemCounts();
+        }
+        if (petPanel->isOpen()) {
+            return;
+        }
+    }
+    
+    // 处理孵化面板事件
+    if (hatchPanel) {
+        hatchPanel->handleEvent(event, game->getWindow());
+        // 如果刚刚打开，更新物品数量
+        if (!hatchWasOpen && hatchPanel->isOpen()) {
+            updatePetPanelItemCounts();
+        }
+        if (hatchPanel->isOpen()) {
+            return;
+        }
+    }
+    
     if (statsPanel) {
         statsPanel->handleEvent(event, game->getWindow());
     }
@@ -382,6 +432,10 @@ void GameState::handleInput(const sf::Event& event) {
                     equipmentPanel->close();
                 } else if (craftingPanel && craftingPanel->isOpen()) {
                     craftingPanel->close();
+                } else if (petPanel && petPanel->isOpen()) {
+                    petPanel->close();
+                } else if (hatchPanel && hatchPanel->isOpen()) {
+                    hatchPanel->close();
                 } else {
                     requestPop();
                 }
@@ -415,6 +469,24 @@ void GameState::handleInput(const sf::Event& event) {
             case sf::Keyboard::C:
                 if (craftingPanel) {
                     craftingPanel->toggle();
+                }
+                break;
+            
+            // 宠物面板快捷键
+            case sf::Keyboard::P:
+                if (petPanel) {
+                    petPanel->toggle();
+                    // 每次打开都更新物品数量
+                    updatePetPanelItemCounts();
+                }
+                break;
+            
+            // 孵化面板快捷键
+            case sf::Keyboard::H:
+                if (hatchPanel) {
+                    hatchPanel->toggle();
+                    // 每次打开都更新物品数量
+                    updatePetPanelItemCounts();
                 }
                 break;
                 
@@ -455,13 +527,17 @@ void GameState::update(float dt) {
     // 检查任何面板是否打开
     bool anyPanelOpen = (categoryInventoryPanel && categoryInventoryPanel->isOpen()) ||
                         (equipmentPanel && equipmentPanel->isOpen()) ||
-                        (craftingPanel && craftingPanel->isOpen());
+                        (craftingPanel && craftingPanel->isOpen()) ||
+                        (petPanel && petPanel->isOpen()) ||
+                        (hatchPanel && hatchPanel->isOpen());
     
     // 如果任何面板打开，更新面板但暂停游戏逻辑
     if (anyPanelOpen) {
         if (categoryInventoryPanel) categoryInventoryPanel->update(dt);
         if (equipmentPanel) equipmentPanel->update(dt);
         if (craftingPanel) craftingPanel->update(dt);
+        if (petPanel) petPanel->update(dt);
+        if (hatchPanel) hatchPanel->update(dt);
         return;
     }
     
@@ -567,9 +643,81 @@ void GameState::update(float dt) {
         treeManager->update(dt);
     }
     
+    // Update stone builds
+    if (stoneBuildManager) {
+        stoneBuildManager->update(dt);
+    }
+    
+    // Update wild plants
+    if (wildPlantManager) {
+        wildPlantManager->update(dt);
+    }
+    
+    // Handle wild plant pickup (F key)
+    handlePlantPickup();
+    
     // Update rabbits
     if (rabbitManager && player) {
         rabbitManager->update(dt, player->getPosition());
+    }
+    
+    // Update pet system
+    if (petManager && player) {
+        bool playerAttacking = player->isAttacking();
+        petManager->update(dt, player->getPosition(), playerAttacking);
+        
+        // 宠物碰撞处理（与兔子的推挤碰撞）
+        Pet* pet = petManager->getCurrentPet();
+        if (pet && rabbitManager) {
+            sf::FloatRect petBox = pet->getCollisionBox();
+            
+            // 宠物推开兔子
+            rabbitManager->pushRabbitsFromRect(petBox, 0.8f);
+            
+            // 兔子也可能推开宠物（互相推挤）
+            auto collidingRabbits = rabbitManager->getRabbitsCollidingWith(petBox);
+            for (Rabbit* rabbit : collidingRabbits) {
+                sf::FloatRect rabbitBox = rabbit->getCollisionBox();
+                
+                sf::Vector2f petCenter(
+                    petBox.left + petBox.width / 2.0f,
+                    petBox.top + petBox.height / 2.0f
+                );
+                sf::Vector2f rabbitCenter(
+                    rabbitBox.left + rabbitBox.width / 2.0f,
+                    rabbitBox.top + rabbitBox.height / 2.0f
+                );
+                
+                // 推挤方向：从兔子指向宠物
+                sf::Vector2f pushDir = petCenter - rabbitCenter;
+                float length = std::sqrt(pushDir.x * pushDir.x + pushDir.y * pushDir.y);
+                
+                if (length > 0.001f) {
+                    pushDir /= length;
+                    
+                    float overlapX = (petBox.width + rabbitBox.width) / 2.0f - 
+                                    std::abs(petCenter.x - rabbitCenter.x);
+                    float overlapY = (petBox.height + rabbitBox.height) / 2.0f - 
+                                    std::abs(petCenter.y - rabbitCenter.y);
+                    
+                    float pushDistance = std::min(overlapX, overlapY) * 0.5f;
+                    sf::Vector2f newPos = pet->getPosition() + pushDir * pushDistance;
+                    pet->setPosition(newPos);
+                }
+            }
+        }
+        
+        // 检查宠物物品掉落（如兔毛）
+        std::string dropItem = petManager->checkPetItemDrop(dt);
+        if (!dropItem.empty() && categoryInventory) {
+            int added = categoryInventory->addItem(dropItem, 1);
+            if (added > 0 && eventLogPanel) {
+                const ItemData* data = ItemDatabase::getInstance().getItemData(dropItem);
+                if (data) {
+                    eventLogPanel->addItemObtained(data->name, 1, dropItem);
+                }
+            }
+        }
     }
     
     // Update dropped items
@@ -592,6 +740,12 @@ void GameState::update(float dt) {
     }
     if (eventLogPanel) {
         eventLogPanel->update(dt);
+    }
+    if (petPanel) {
+        petPanel->update(dt);
+    }
+    if (hatchPanel) {
+        hatchPanel->update(dt);
     }
 }
 
@@ -616,6 +770,16 @@ void GameState::render(sf::RenderWindow& window) {
         treeManager->render(window, camera->getView());
     }
     
+    // Render stone builds
+    if (stoneBuildManager && camera) {
+        stoneBuildManager->render(window, camera->getView());
+    }
+    
+    // Render wild plants
+    if (wildPlantManager && camera) {
+        wildPlantManager->render(window, camera->getView());
+    }
+    
     // Render rabbits
     if (rabbitManager && camera) {
         rabbitManager->render(window, camera->getView());
@@ -624,6 +788,11 @@ void GameState::render(sf::RenderWindow& window) {
     // Render player
     if (player) {
         player->render(window);
+    }
+    
+    // Render pet (follows player)
+    if (petManager && camera) {
+        petManager->render(window);
     }
     
     // Reset to default view for UI
@@ -635,7 +804,9 @@ void GameState::render(sf::RenderWindow& window) {
     // Render tree tooltips (needs world mouse position)
     bool anyPanelOpen = (categoryInventoryPanel && categoryInventoryPanel->isOpen()) ||
                         (equipmentPanel && equipmentPanel->isOpen()) ||
-                        (craftingPanel && craftingPanel->isOpen());
+                        (craftingPanel && craftingPanel->isOpen()) ||
+                        (petPanel && petPanel->isOpen()) ||
+                        (hatchPanel && hatchPanel->isOpen());
     if (camera && !anyPanelOpen) {
         sf::Vector2i mouseScreenPos = sf::Mouse::getPosition(window);
         sf::Vector2f mouseWorldPos = window.mapPixelToCoords(mouseScreenPos, camera->getView());
@@ -645,6 +816,12 @@ void GameState::render(sf::RenderWindow& window) {
         }
         if (rabbitManager) {
             rabbitManager->renderTooltips(window, mouseWorldPos);
+        }
+        if (stoneBuildManager) {
+            stoneBuildManager->renderTooltips(window, mouseWorldPos);
+        }
+        if (wildPlantManager) {
+            wildPlantManager->renderTooltips(window, mouseWorldPos);
         }
     }
 }
@@ -680,6 +857,16 @@ void GameState::renderUI(sf::RenderWindow& window) {
     if (eventLogPanel) {
         eventLogPanel->render(window);
     }
+    
+    // Render pet panel
+    if (petPanel) {
+        petPanel->render(window);
+    }
+    
+    // Render hatch panel
+    if (hatchPanel) {
+        hatchPanel->render(window);
+    }
 }
 
 void GameState::switchMap(MapType newMap) {
@@ -696,6 +883,20 @@ void GameState::switchMap(MapType newMap) {
             treeManager->clearAllTrees();
         }
         initTrees();
+        
+        // Clear and reload stone builds
+        if (stoneBuildManager) {
+            stoneBuildManager->clearAllStones();
+        }
+        initStoneBuilds();
+        tileMap->removeStoneObjects();  // 由StoneBuildManager接管渲染
+        
+        // Clear and reload wild plants
+        if (wildPlantManager) {
+            wildPlantManager->clearAllPlants();
+        }
+        initWildPlants();
+        tileMap->removeWildPlantObjects();  // 由WildPlantManager接管渲染
         
         // Clear dropped items
         if (droppedItemManager) {
@@ -887,7 +1088,7 @@ void GameState::initTrees() {
         }
     }
     
-    tileMap->clearObjects();
+    tileMap->removeTreeObjects();
     
     std::cout << "[Trees] Total trees loaded: " << treeManager->getTreeCount() << std::endl;
 }
@@ -946,6 +1147,19 @@ void GameState::initRabbits() {
             std::cout << "[Combat] Rabbit attacked player for " << actualDamage << " damage"
                       << (usedSkill ? " (SKILL!)" : "") << std::endl;
             
+            // 宠物帮忙反击
+            if (petManager) {
+                Pet* pet = petManager->getCurrentPet();
+                if (pet && !pet->isDead()) {
+                    // 设置攻击目标为攻击玩家的兔子
+                    pet->setAttackTarget(rabbitPos);
+                    
+                    if (eventLogPanel) {
+                        eventLogPanel->addMessage(pet->getName() + " 帮你反击!", EventType::Combat);
+                    }
+                }
+            }
+            
             if (player->isDead()) {
                 if (eventLogPanel) {
                     eventLogPanel->addMessage("你被击败了...", EventType::Combat);
@@ -955,6 +1169,166 @@ void GameState::initRabbits() {
     }
     
     std::cout << "[Rabbits] Spawned " << rabbitManager->getRabbitCount() << " rabbits" << std::endl;
+}
+
+// ============================================================================
+// 初始化石头建筑
+// ============================================================================
+void GameState::initStoneBuilds() {
+    if (!stoneBuildManager || !tileMap) return;
+    
+    const auto& objects = tileMap->getObjects();
+    float displayScale = (float)tileMap->getTileSize() / 32.0f;
+    
+    std::cout << "[StoneBuilds] Loading stone builds from " << objects.size() << " map objects..." << std::endl;
+    
+    int stoneCount = 0;
+    for (const auto& obj : objects) {
+        if (!obj.tileProperty) continue;
+        
+        // 检查是否是石头建筑类型
+        // TSX中定义：base="build", type="stone_build"
+        bool isStone = false;
+        if (obj.tileProperty->type == "stone_build") {
+            isStone = true;
+        } else if (obj.tileProperty->name.find("stone_build") != std::string::npos) {
+            isStone = true;
+        }
+        
+        if (!isStone) continue;
+        
+        float x = obj.x * displayScale;
+        float y = obj.y * displayScale;
+        float width = obj.width * displayScale;
+        float height = obj.height * displayScale;
+        
+        StoneBuild* stone = stoneBuildManager->addStoneFromProperty(x, y, obj.tileProperty);
+        if (stone) {
+            stone->setSize(width, height);
+            stoneCount++;
+            
+            std::cout << "[StoneBuilds] Created: " << obj.tileProperty->name 
+                      << " HP=" << obj.tileProperty->hp 
+                      << " DEF=" << obj.tileProperty->defense << std::endl;
+        }
+    }
+    
+    std::cout << "[StoneBuilds] Loaded " << stoneCount << " stone builds" << std::endl;
+}
+
+// ============================================================================
+// 初始化野生植物
+// ============================================================================
+void GameState::initWildPlants() {
+    if (!wildPlantManager || !tileMap) return;
+    
+    const auto& objects = tileMap->getObjects();
+    float displayScale = (float)tileMap->getTileSize() / 32.0f;
+    
+    std::cout << "[WildPlants] Loading wild plants from " << objects.size() << " map objects..." << std::endl;
+    
+    int plantCount = 0;
+    for (const auto& obj : objects) {
+        if (!obj.tileProperty) continue;
+        
+        // 检查是否是野生植物类型
+        // TSX中定义：base="plants", type="wild_plants"
+        bool isWildPlant = false;
+        if (obj.tileProperty->type == "wild_plants") {
+            isWildPlant = true;
+        } else if (obj.tileProperty->name.find("carrot") != std::string::npos ||
+                   obj.tileProperty->name.find("bean") != std::string::npos) {
+            isWildPlant = true;
+        }
+        
+        if (!isWildPlant) continue;
+        
+        float x = obj.x * displayScale;
+        float y = obj.y * displayScale;
+        float width = obj.width * displayScale;
+        float height = obj.height * displayScale;
+        
+        WildPlant* plant = wildPlantManager->addPlantFromProperty(x, y, obj.tileProperty);
+        if (plant) {
+            plant->setSize(width, height);
+            plantCount++;
+            
+            std::cout << "[WildPlants] Created: " << obj.tileProperty->name 
+                      << " pickup=" << (obj.tileProperty->allowPickup ? "yes" : "no")
+                      << " item=" << obj.tileProperty->pickupObject << std::endl;
+        }
+    }
+    
+    std::cout << "[WildPlants] Loaded " << plantCount << " wild plants" << std::endl;
+}
+
+// ============================================================================
+// 处理野生植物拾取（V键）
+// ============================================================================
+void GameState::handlePlantPickup() {
+    if (!player || !wildPlantManager) return;
+    
+    // 检查 V 键按下
+    bool pickupPressed = sf::Keyboard::isKeyPressed(sf::Keyboard::V);
+    
+    if (pickupPressed && !pickupKeyPressed) {
+        // V 键刚按下
+        sf::Vector2f playerPos = player->getPosition();
+        
+        std::cout << "[DEBUG] V key pressed, player at (" << playerPos.x << ", " << playerPos.y << ")" << std::endl;
+        std::cout << "[DEBUG] Plant count: " << wildPlantManager->getPlantCount() << std::endl;
+        
+        // 查找范围内可拾取的植物
+        WildPlant* plant = wildPlantManager->getPickablePlantInRange(
+            playerPos, PLANT_PICKUP_RANGE);
+        
+        if (plant) {
+            std::cout << "[DEBUG] Found plant: " << plant->getName() << " at (" 
+                      << plant->getPosition().x << ", " << plant->getPosition().y << ")" << std::endl;
+            
+            // 播放拾取动画
+            player->startPickup();
+            
+            // 执行拾取
+            auto drops = wildPlantManager->pickupPlant(plant);
+            
+            std::cout << "[DEBUG] Plant pickup drops count: " << drops.size() << std::endl;
+            
+            // 添加物品到背包
+            for (const auto& drop : drops) {
+                std::cout << "[DEBUG] Trying to add item: '" << drop.first << "' x" << drop.second << std::endl;
+                
+                if (categoryInventory) {
+                    int added = categoryInventory->addItem(drop.first, drop.second);
+                    
+                    std::cout << "[DEBUG] Actually added: " << added << std::endl;
+                    
+                    // 记录到事件日志
+                    if (added > 0 && eventLogPanel) {
+                        const ItemData* data = ItemDatabase::getInstance().getItemData(drop.first);
+                        if (data) {
+                            eventLogPanel->addItemObtained(data->name, added, drop.first);
+                        }
+                    }
+                    
+                    if (added < drop.second && eventLogPanel) {
+                        eventLogPanel->addWarning("背包已满!");
+                    }
+                } else {
+                    std::cout << "[DEBUG] categoryInventory is NULL!" << std::endl;
+                }
+                
+                std::cout << "[Pickup] 获得 " << drop.first << " x" << drop.second << std::endl;
+            }
+        } else {
+            std::cout << "[DEBUG] No pickable plant found in range " << PLANT_PICKUP_RANGE << std::endl;
+        }
+    }
+    
+    pickupKeyPressed = pickupPressed;
+    
+    // 清理已拾取的植物
+    wildPlantManager->removePickedPlants();
 }
 
 void GameState::handlePlayerAttack() {
@@ -980,6 +1354,56 @@ void GameState::handlePlayerAttack() {
             if (!hitTrees.empty()) {
                 std::cout << "[Attack] Hit " << hitTrees.size() << " tree(s) for " 
                           << damage << " damage" << (ignoreDefense ? " (ignore defense)" : "") << std::endl;
+            }
+        }
+        
+        // 攻击石头建筑
+        if (stoneBuildManager) {
+            auto hitStones = stoneBuildManager->damageStonesInRange(attackCenter, attackRadius, damage);
+            
+            for (auto* stone : hitStones) {
+                if (stone->isDead()) {
+                    // 石头被摧毁，生成掉落物
+                    auto drops = stone->generateDrops();
+                    
+                    if (!drops.empty() && droppedItemManager) {
+                        sf::Vector2f stonePos = stone->getPosition();
+                        droppedItemManager->spawnItems(drops, stonePos.x, stonePos.y - 20);
+                        
+                        // 添加到事件日志
+                        if (eventLogPanel) {
+                            eventLogPanel->addMessage("采集了 " + stone->getName(), EventType::System);
+                            for (const auto& drop : drops) {
+                                const ItemData* data = ItemDatabase::getInstance().getItemData(drop.first);
+                                if (data) {
+                                    eventLogPanel->addItemObtained(data->name, drop.second, drop.first);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 获得经验和金币
+                    int exp = stone->getExpReward();
+                    int gold = stone->getGoldReward();
+                    
+                    int oldLevel = player->getStats().getLevel();
+                    player->getStats().addExp(exp);
+                    int newLevel = player->getStats().getLevel();
+                    player->getStats().addGold(gold);
+                    
+                    if (eventLogPanel) {
+                        if (exp > 0) eventLogPanel->addExpObtained(exp, "采石");
+                        if (gold > 0) eventLogPanel->addGoldObtained(gold);
+                        if (newLevel > oldLevel) eventLogPanel->addLevelUp(newLevel);
+                    }
+                    
+                    std::cout << "[Stone] Destroyed! +" << exp << " EXP, +" << gold << " Gold" << std::endl;
+                }
+            }
+            
+            if (!hitStones.empty()) {
+                std::cout << "[Attack] Hit " << hitStones.size() << " stone(s) for " 
+                          << damage << " damage" << std::endl;
             }
         }
         
@@ -1030,6 +1454,68 @@ void GameState::handlePlayerAttack() {
             if (!hitRabbits.empty()) {
                 std::cout << "[Attack] Hit " << hitRabbits.size() << " rabbit(s) for " 
                           << damage << " damage" << std::endl;
+            }
+        }
+        
+        // 宠物协同攻击敌人
+        if (petManager && rabbitManager) {
+            Pet* pet = petManager->getCurrentPet();
+            if (pet && pet->hasJustAttacked()) {
+                float petDamage = pet->getAttack();
+                sf::Vector2f petPos = pet->getPosition();
+                float petAttackRange = pet->getAttackRange();
+                
+                // 宠物攻击范围内的兔子
+                auto petHitRabbits = rabbitManager->damageRabbitsInRange(petPos, petAttackRange, petDamage, false);
+                
+                for (auto* rabbit : petHitRabbits) {
+                    if (rabbit->isDead()) {
+                        // 兔子死亡，生成掉落物
+                        auto drops = rabbit->generateDrops();
+                        
+                        if (!drops.empty() && droppedItemManager) {
+                            sf::Vector2f rabbitPos = rabbit->getPosition();
+                            droppedItemManager->spawnItems(drops, rabbitPos.x, rabbitPos.y);
+                            
+                            if (eventLogPanel) {
+                                eventLogPanel->addMessage(pet->getName() + " 击杀了 " + rabbit->getName(), EventType::Combat);
+                                for (const auto& drop : drops) {
+                                    const ItemData* data = ItemDatabase::getInstance().getItemData(drop.first);
+                                    if (data) {
+                                        eventLogPanel->addItemObtained(data->name, drop.second, drop.first);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 获得经验和金币（宠物击杀也有奖励）
+                        int exp = rabbit->getExpReward();
+                        int gold = rabbit->getGoldReward();
+                        
+                        int oldLevel = player->getStats().getLevel();
+                        player->getStats().addExp(exp);
+                        int newLevel = player->getStats().getLevel();
+                        player->getStats().addGold(gold);
+                        
+                        // 宠物也获得经验
+                        pet->addExp(exp / 2);
+                        
+                        if (eventLogPanel) {
+                            if (exp > 0) eventLogPanel->addExpObtained(exp, "宠物击杀");
+                            if (gold > 0) eventLogPanel->addGoldObtained(gold);
+                            if (newLevel > oldLevel) eventLogPanel->addLevelUp(newLevel);
+                        }
+                        
+                        std::cout << "[Pet Attack] " << pet->getName() << " killed rabbit! +" << exp << " EXP" << std::endl;
+                    }
+                }
+                
+                if (!petHitRabbits.empty()) {
+                    std::cout << "[Pet Attack] " << pet->getName() << " hit " << petHitRabbits.size() 
+                              << " rabbit(s) for " << petDamage << " damage" << std::endl;
+                }
+                
+                pet->clearJustAttacked();
             }
         }
     }
@@ -1269,5 +1755,215 @@ void GameState::onUnequipItem(EquipmentSlot slot) {
         }
         
         std::cout << "[Unequip] Unequipped " << unequipped.itemId << std::endl;
+    }
+}
+
+// ============================================================================
+// 初始化宠物系统
+// ============================================================================
+void GameState::initPetSystem() {
+    std::cout << "[PetSystem] Initializing..." << std::endl;
+    
+    // 创建宠物管理器
+    petManager = std::make_unique<PetManager>();
+    petManager->init("../../assets");
+    
+    sf::Vector2u windowSize = game->getWindow().getSize();
+    
+    // 创建宠物栏面板
+    petPanel = std::make_unique<PetPanel>();
+    petPanel->init("../../assets/ui/pet_icon.png");
+    petPanel->setInventoryManager(petManager.get());
+    petPanel->setIconPosition(300.0f, windowSize.y - 80.0f);
+    
+    // 设置洗点回调
+    petPanel->setWashCallback([this](int slotIndex, float luck) {
+        return onWashPet(slotIndex, luck);
+    });
+    
+    // 设置切换宠物回调
+    petPanel->setSwitchPetCallback([this](int slotIndex) {
+        return onSwitchPet(slotIndex);
+    });
+    
+    // 创建孵化栏面板
+    hatchPanel = std::make_unique<HatchPanel>();
+    hatchPanel->init("../../assets/ui/hatch_icon.png");
+    hatchPanel->setPetManager(petManager.get());
+    hatchPanel->setIconPosition(370.0f, windowSize.y - 80.0f);
+    
+    // 设置孵化回调
+    hatchPanel->setHatchCallback([this](int petTypeId, int enhancerCount) {
+        return onHatchPet(petTypeId, enhancerCount);
+    });
+    
+    // 初始化时更新物品数量
+    updatePetPanelItemCounts();
+    
+    std::cout << "[PetSystem] Initialized successfully" << std::endl;
+    std::cout << "  - P: 宠物栏" << std::endl;
+    std::cout << "  - H: 孵化栏" << std::endl;
+}
+
+// ============================================================================
+// 孵化宠物回调
+// ============================================================================
+bool GameState::onHatchPet(int petTypeId, int enhancerCount) {
+    if (!petManager || !categoryInventory) return false;
+    
+    // 检查精元和获取对应的强化剂ID
+    std::string essenceId;
+    std::string enhancerId;  // 每种精元对应的特殊强化剂
+    std::string enhancerName;
+    
+    if (petTypeId == 1) {
+        essenceId = "rabbit_essence";
+        enhancerId = "rabbit_fur";  // 兔子精元使用兔毛作为强化剂
+        enhancerName = "兔毛";
+    }
+    // 未来可以添加更多宠物类型
+    // else if (petTypeId == 2) {
+    //     essenceId = "slime_essence";
+    //     enhancerId = "slime_goo";
+    //     enhancerName = "粘液";
+    // }
+    
+    if (essenceId.empty()) {
+        if (eventLogPanel) {
+            eventLogPanel->addWarning("未知的宠物类型！");
+        }
+        return false;
+    }
+    
+    // 检查是否有精元
+    int essenceCount = categoryInventory->getItemCount(essenceId);
+    if (essenceCount <= 0) {
+        if (eventLogPanel) {
+            eventLogPanel->addWarning("没有足够的精元！");
+        }
+        return false;
+    }
+    
+    // 检查特定强化剂数量
+    int availableEnhancers = categoryInventory->getItemCount(enhancerId);
+    int usedEnhancers = std::min(enhancerCount, availableEnhancers);
+    
+    // 消耗精元
+    categoryInventory->removeItem(essenceId, 1);
+    
+    // 消耗强化剂
+    if (usedEnhancers > 0) {
+        categoryInventory->removeItem(enhancerId, usedEnhancers);
+        if (eventLogPanel) {
+            eventLogPanel->addMessage("使用了 " + std::to_string(usedEnhancers) + " 个" + enhancerName + "作为强化剂", EventType::System);
+        }
+    }
+    
+    // 孵化宠物
+    if (petManager->hatchPet(petTypeId, usedEnhancers)) {
+        if (eventLogPanel) {
+            Pet* newPet = petManager->getCurrentPet();
+            if (newPet) {
+                std::string qualityName = Pet::getQualityName(newPet->getQuality());
+                eventLogPanel->addMessage("孵化成功！获得 " + qualityName + " 资质的 " + 
+                                         newPet->getPetTypeName(), EventType::System);
+            }
+        }
+        
+        // 更新面板物品数量显示
+        updatePetPanelItemCounts();
+        return true;
+    }
+    
+    return false;
+}
+
+// ============================================================================
+// 洗点宠物回调
+// ============================================================================
+bool GameState::onWashPet(int slotIndex, float playerLuck) {
+    if (!petManager || !categoryInventory) return false;
+    
+    // 检查洗涤剂
+    int cleanserCount = categoryInventory->getItemCount("pet_cleanser");
+    if (cleanserCount <= 0) {
+        if (eventLogPanel) {
+            eventLogPanel->addWarning("没有宠物洗涤剂！");
+        }
+        return false;
+    }
+    
+    // 获取当前宠物资质
+    Pet* pet = petManager->getPetAt(slotIndex);
+    if (!pet) return false;
+    
+    PetQuality oldQuality = pet->getQuality();
+    
+    // 消耗洗涤剂
+    categoryInventory->removeItem("pet_cleanser", 1);
+    
+    // 执行洗点
+    if (petManager->washPet(slotIndex, playerLuck)) {
+        PetQuality newQuality = pet->getQuality();
+        
+        if (eventLogPanel) {
+            eventLogPanel->addMessage("洗点成功！" + Pet::getQualityName(oldQuality) + 
+                                     " -> " + Pet::getQualityName(newQuality), EventType::System);
+        }
+        
+        // 更新面板物品数量显示
+        updatePetPanelItemCounts();
+        return true;
+    }
+    
+    return false;
+}
+
+// ============================================================================
+// 切换宠物回调
+// ============================================================================
+bool GameState::onSwitchPet(int slotIndex) {
+    if (!petManager) return false;
+    
+    if (petManager->switchPet(slotIndex)) {
+        Pet* pet = petManager->getCurrentPet();
+        if (pet && eventLogPanel) {
+            eventLogPanel->addMessage("切换到宠物: " + pet->getName(), EventType::System);
+        }
+        return true;
+    }
+    
+    return false;
+}
+
+// ============================================================================
+// 更新宠物面板物品数量
+// ============================================================================
+void GameState::updatePetPanelItemCounts() {
+    if (!categoryInventory) {
+        std::cout << "[PetSystem] Error: categoryInventory is null!" << std::endl;
+        return;
+    }
+    
+    int rabbitEssence = categoryInventory->getItemCount("rabbit_essence");
+    int rabbitFur = categoryInventory->getItemCount("rabbit_fur");  // 兔毛作为兔子精元的强化剂
+    int cleansers = categoryInventory->getItemCount("pet_cleanser");
+    
+    std::cout << "[PetSystem] Updating counts - Essence: " << rabbitEssence 
+              << ", RabbitFur(Enhancer): " << rabbitFur 
+              << ", Cleansers: " << cleansers << std::endl;
+    
+    // 更新宠物栏面板
+    if (petPanel) {
+        petPanel->setCleanserCount(cleansers);
+        if (player) {
+            petPanel->setPlayerLuck(player->getStats().getLuck());
+        }
+    }
+    
+    // 更新孵化栏面板
+    if (hatchPanel) {
+        hatchPanel->setEssenceCount(1, rabbitEssence);
+        hatchPanel->setEnhancerCount(rabbitFur);  // 使用兔毛数量
     }
 }

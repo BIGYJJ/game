@@ -10,7 +10,8 @@ enum class AnimState {
     Idle,
     Walk,
     Attack,
-    Hurt    // 受伤状态
+    Hurt,    // 受伤状态
+    Pickup   // 拾取状态
 };
 
 // 朝向枚举
@@ -34,6 +35,9 @@ public:
         , knockbackTimer(0.0f)
         , knockbackDuration(0.15f)
         , isKnockedBack(false)
+        , isPickingUp(false)
+        , pickupTimer(0.0f)
+        , pickupDuration(0.5f)
     {
         // 加载精灵表
         if (!texture.loadFromFile("../../assets/player.png")) {
@@ -69,6 +73,14 @@ public:
             }
         }
         
+        // 更新拾取计时器
+        if (isPickingUp) {
+            pickupTimer += dt;
+            if (pickupTimer >= pickupDuration) {
+                isPickingUp = false;
+            }
+        }
+        
         // 更新击退效果
         if (isKnockedBack) {
             knockbackTimer += dt;
@@ -98,32 +110,35 @@ public:
         if (isKnockedBack) {
             currentSpeed *= 0.3f;
         }
+        
+        // 拾取时不能移动
+        if (!isPickingUp) {
+            // 键盘控制
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::W) || sf::Keyboard::isKeyPressed(sf::Keyboard::Up)) {
+                movement.y -= currentSpeed * dt;
+                isMoving = true;
+            }
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) || sf::Keyboard::isKeyPressed(sf::Keyboard::Down)) {
+                movement.y += currentSpeed * dt;
+                isMoving = true;
+            }
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) || sf::Keyboard::isKeyPressed(sf::Keyboard::Left)) {
+                movement.x -= currentSpeed * dt;
+                isMoving = true;
+                facing = Direction::Left;
+            }
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) || sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) {
+                movement.x += currentSpeed * dt;
+                isMoving = true;
+                facing = Direction::Right;
+            }
 
-        // 键盘控制
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::W) || sf::Keyboard::isKeyPressed(sf::Keyboard::Up)) {
-            movement.y -= currentSpeed * dt;
-            isMoving = true;
+            // 更新位置
+            sprite.move(movement);
         }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) || sf::Keyboard::isKeyPressed(sf::Keyboard::Down)) {
-            movement.y += currentSpeed * dt;
-            isMoving = true;
-        }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) || sf::Keyboard::isKeyPressed(sf::Keyboard::Left)) {
-            movement.x -= currentSpeed * dt;
-            isMoving = true;
-            facing = Direction::Left;
-        }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) || sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) {
-            movement.x += currentSpeed * dt;
-            isMoving = true;
-            facing = Direction::Right;
-        }
-
-        // 更新位置
-        sprite.move(movement);
 
         // 状态切换（受伤动画优先级低于攻击）
-        if (currentState != AnimState::Attack) {
+        if (currentState != AnimState::Attack && currentState != AnimState::Pickup) {
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space)) {
                 // 攻击消耗体力
                 if (stats.hasStamina(5.0f)) {
@@ -134,7 +149,7 @@ public:
             } else if (isHurt && currentState != AnimState::Hurt) {
                 // 被攻击但还没播放受伤动画
                 setState(AnimState::Hurt);
-            } else if (!isHurt) {
+            } else if (!isHurt && !isPickingUp) {
                 // 正常移动/站立
                 if (isMoving) {
                     setState(AnimState::Walk);
@@ -154,6 +169,29 @@ public:
     
     void render(sf::RenderWindow& window) {
         window.draw(sprite);
+    }
+    
+    // ========================================
+    // 拾取动画相关
+    // ========================================
+    
+    // 开始拾取动画
+    void startPickup() {
+        if (!isPickingUp && currentState != AnimState::Attack) {
+            isPickingUp = true;
+            pickupTimer = 0.0f;
+            setState(AnimState::Pickup);
+        }
+    }
+    
+    // 是否正在拾取
+    bool isInPickupAnimation() const {
+        return isPickingUp || currentState == AnimState::Pickup;
+    }
+    
+    // 拾取动画是否刚刚开始（用于触发拾取逻辑）
+    bool isPickupJustStarted() const {
+        return isPickingUp && pickupTimer < 0.1f;
     }
     
     // ========================================
@@ -395,6 +433,15 @@ private:
             sf::IntRect(330, 559, 105, 117),
             sf::IntRect(455, 559, 114, 117)
         };
+        
+        // 拾取动画 (5帧) - 第五行
+        pickupFrames = {
+            sf::IntRect(50,  759, 120, 150),  // Frame 1: 站立准备
+            sf::IntRect(180, 759, 120, 150),  // Frame 2: 开始弯腰
+            sf::IntRect(310, 759, 120, 150),  // Frame 3: 蹲下拾取
+            sf::IntRect(440, 759, 120, 150),  // Frame 4: 起身
+            sf::IntRect(570, 759, 120, 150)   // Frame 5: 恢复站立
+        };
     }
 
     void updateAnimation(float dt) {
@@ -408,6 +455,12 @@ private:
             
             if (currentFrame >= frames.size()) {
                 if (currentState == AnimState::Attack) {
+                    setState(AnimState::Idle);
+                    return;
+                }
+                if (currentState == AnimState::Pickup) {
+                    // 拾取动画播放完后恢复站立
+                    isPickingUp = false;
                     setState(AnimState::Idle);
                     return;
                 }
@@ -428,6 +481,7 @@ private:
             case AnimState::Walk:   return walkFrames;
             case AnimState::Attack: return attackFrames;
             case AnimState::Hurt:   return hurtFrames;
+            case AnimState::Pickup: return pickupFrames;
             case AnimState::Idle:
             default:                return idleFrames;
         }
@@ -483,7 +537,8 @@ private:
     std::vector<sf::IntRect> idleFrames;
     std::vector<sf::IntRect> walkFrames;
     std::vector<sf::IntRect> attackFrames;
-    std::vector<sf::IntRect> hurtFrames;  // 受伤动画帧
+    std::vector<sf::IntRect> hurtFrames;   // 受伤动画帧
+    std::vector<sf::IntRect> pickupFrames; // 拾取动画帧
     
     // 受伤状态
     float hurtTimer;           // 受伤动画计时
@@ -495,6 +550,11 @@ private:
     float knockbackTimer;            // 击退计时器
     float knockbackDuration;         // 击退持续时间
     bool isKnockedBack;              // 是否正在被击退
+    
+    // 拾取状态
+    bool isPickingUp;          // 是否正在拾取
+    float pickupTimer;         // 拾取计时器
+    float pickupDuration;      // 拾取动画持续时间
     
     // 属性系统
     PlayerStats stats;

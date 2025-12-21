@@ -37,7 +37,7 @@ int CategoryInventory::addItem(const std::string& itemId, int count) {
     
     const ItemData* data = ItemDatabase::getInstance().getItemData(itemId);
     if (!data) {
-        std::cout << "[CategoryInventory] Unknown item: " << itemId << std::endl;
+        std::cout << "[CategoryInventory] Unknown item : " << itemId << std::endl;
         return 0;
     }
     
