@@ -5,6 +5,9 @@
 #include <functional>
 #include <map>
 #include <sstream>
+#include <random>
+#include <vector>
+
 // ============================================================================
 // 装备系统 (Equipment System)
 // 
@@ -43,6 +46,18 @@
 //   - ignoreDefense:  无视防御（如斧头无视树木防御）
 //   - critRate:       暴击率加成
 //   - critDamage:     暴击伤害加成
+//   - lifeSteal:      吸血（攻击伤害*吸血率=恢复生命）
+//
+// 【武器资质系统】
+//   - 资质等级：白、绿、蓝、橙、紫、黄、红（7个等级）
+//   - 不同资质影响武器的攻击力范围
+//   - 可通过锻造获得，锻造时可添加武器魂提升高资质概率
+//
+// 【武器强化系统】
+//   - 强化需要强化石
+//   - 强化消耗公式：消耗 = 基础值 + (当前等级 × 当前等级 × 系数)
+//   - 每次强化增加固定攻击力
+//   - 满级额外属性（如吸血）
 //
 // ============================================================================
 
@@ -75,10 +90,80 @@ enum class WeaponType {
     Mace,           // 单手锤
     TwoHandMace,    // 双手锤
     Spear,          // 枪
-    Polearm         // 矛
+    Polearm,        // 矛
+    Knife           // 小刀
 };
 
+// ============================================================================
+// 武器资质系统
+// ============================================================================
+
+// 武器资质等级枚举
+enum class WeaponQuality {
+    White = 0,      // 白
+    Green,          // 绿
+    Blue,           // 蓝
+    Orange,         // 橙
+    Purple,         // 紫
+    Yellow,         // 黄
+    Red,            // 红
+    Count
+};
+
+// 武器攻击力范围（根据资质）
+struct WeaponAttackRange {
+    int minAttack;
+    int maxAttack;
+    
+    WeaponAttackRange(int min = 0, int max = 0) : minAttack(min), maxAttack(max) {}
+};
+
+// 武器资质配置
+struct WeaponQualityConfig {
+    std::string weaponId;                   // 武器ID
+    bool hasQualitySystem;                  // 是否有资质系统
+    bool canEnhance;                        // 是否可强化
+    int maxEnhanceLevel;                    // 最大强化等级
+    int enhanceAttackBonus;                 // 每级强化攻击力加成
+    float maxLevelLifeSteal;                // 满级吸血率
+    int fixedIgnoreDefense;                 // 固定无视防御值
+    
+    // 掉落资质概率（白、绿、蓝、橙、紫、黄、红）
+    std::array<float, 7> dropQualityProb;
+    // 锻造资质概率（白、绿、蓝、橙、紫、黄、红）
+    std::array<float, 7> forgeQualityProb;
+    // 各资质攻击力范围
+    std::array<WeaponAttackRange, 7> attackRanges;
+    
+    WeaponQualityConfig()
+        : hasQualitySystem(false)
+        , canEnhance(false)
+        , maxEnhanceLevel(0)
+        , enhanceAttackBonus(0)
+        , maxLevelLifeSteal(0.0f)
+        , fixedIgnoreDefense(0)
+    {
+        dropQualityProb.fill(0.0f);
+        forgeQualityProb.fill(0.0f);
+    }
+};
+
+// ============================================================================
+// 武器强化系统
+// ============================================================================
+
+// 强化结果
+enum class EnhanceResult {
+    Success,            // 成功
+    NotEnough,          // 材料不足
+    MaxLevel,           // 已满级
+    NotEnhanceable      // 不可强化
+};
+
+// ============================================================================
 // 装备属性结构
+// ============================================================================
+
 struct EquipmentStats {
     int attack = 0;         // 攻击力
     int defense = 0;        // 防御力
@@ -92,10 +177,12 @@ struct EquipmentStats {
     float jump = 0;         // 跳跃力
     
     // 特殊效果
-    bool ignoreDefense = false;     // 无视目标防御
+    bool ignoreDefense = false;     // 无视目标防御（完全无视）
     float ignoreDefenseRate = 0;    // 无视防御比例 (0-1)
+    int ignoreDefenseValue = 0;     // 固定无视防御值
     float critRate = 0;             // 暴击率加成
     float critDamage = 0;           // 暴击伤害加成
+    float lifeSteal = 0;            // 吸血率
     
     // 运算符重载（用于计算总属性）
     EquipmentStats operator+(const EquipmentStats& other) const {
@@ -112,13 +199,18 @@ struct EquipmentStats {
         result.jump = jump + other.jump;
         result.ignoreDefense = ignoreDefense || other.ignoreDefense;
         result.ignoreDefenseRate = std::max(ignoreDefenseRate, other.ignoreDefenseRate);
+        result.ignoreDefenseValue = ignoreDefenseValue + other.ignoreDefenseValue;
         result.critRate = critRate + other.critRate;
         result.critDamage = critDamage + other.critDamage;
+        result.lifeSteal = lifeSteal + other.lifeSteal;
         return result;
     }
 };
 
+// ============================================================================
 // 装备数据结构
+// ============================================================================
+
 struct EquipmentData {
     std::string id;             // 唯一ID
     std::string name;           // 显示名称
@@ -139,6 +231,39 @@ struct EquipmentData {
         , requiredLevel(0)
         , requiredStrength(0)
         , requiredDexterity(0) {}
+};
+
+// ============================================================================
+// 武器实例（带资质和强化等级的武器）
+// ============================================================================
+
+struct WeaponInstance {
+    std::string baseWeaponId;       // 基础武器ID
+    WeaponQuality quality;          // 资质等级
+    int enhanceLevel;               // 强化等级
+    int baseAttack;                 // 基础攻击力（由资质决定）
+    int totalAttack;                // 总攻击力（基础+强化）
+    float lifeSteal;                // 吸血率
+    int ignoreDefenseValue;         // 固定无视防御值
+    std::string uniqueId;           // 唯一标识符
+    
+    WeaponInstance()
+        : quality(WeaponQuality::White)
+        , enhanceLevel(0)
+        , baseAttack(0)
+        , totalAttack(0)
+        , lifeSteal(0.0f)
+        , ignoreDefenseValue(0)
+    {}
+    
+    // 获取显示名称（包含资质和强化信息）
+    std::string getDisplayName() const;
+    
+    // 获取资质颜色
+    static sf::Color getQualityColor(WeaponQuality q);
+    
+    // 获取资质名称
+    static std::string getQualityName(WeaponQuality q);
 };
 
 // ============================================================================
@@ -164,10 +289,55 @@ public:
     // 获取武器类型名称
     static std::string getWeaponTypeName(WeaponType type);
     
+    // ========================================
+    // 武器资质系统
+    // ========================================
+    
+    // 注册武器资质配置
+    void registerWeaponQualityConfig(const WeaponQualityConfig& config);
+    
+    // 获取武器资质配置
+    const WeaponQualityConfig* getWeaponQualityConfig(const std::string& weaponId) const;
+    
+    // 生成武器实例（怪物掉落）
+    WeaponInstance generateWeaponFromDrop(const std::string& weaponId);
+    
+    // 生成武器实例（锻造，可指定武器魂数量）
+    WeaponInstance forgeWeapon(const std::string& weaponId, int weaponSoulCount = 0);
+    
+    // 计算锻造概率
+    std::array<float, 7> calculateForgeProb(const std::string& weaponId, int weaponSoulCount) const;
+    
+    // ========================================
+    // 武器强化系统
+    // ========================================
+    
+    // 计算强化所需强化石数量
+    int calculateEnhanceCost(const std::string& weaponId, int currentLevel) const;
+    
+    // 强化武器
+    EnhanceResult enhanceWeapon(WeaponInstance& weapon, int& enhanceStoneCount);
+    
+    // 更新武器总攻击力
+    void updateWeaponStats(WeaponInstance& weapon);
+
 private:
     EquipmentManager() = default;
     std::map<std::string, EquipmentData> equipments;
+    std::map<std::string, WeaponQualityConfig> qualityConfigs;
     bool initialized = false;
+    
+    // 随机数生成器
+    std::mt19937 rng{std::random_device{}()};
+    
+    // 根据概率数组随机选择资质
+    WeaponQuality randomQuality(const std::array<float, 7>& probs);
+    
+    // 在攻击力范围内随机
+    int randomAttack(const WeaponAttackRange& range);
+    
+    // 生成唯一ID
+    std::string generateUniqueId();
 };
 
 // ============================================================================
@@ -188,6 +358,9 @@ public:
     // 返回被替换的装备物品（ItemStack，可能为空）
     ItemStack equip(const EquipmentData& equipData);
     
+    // 装备武器实例
+    WeaponInstance equipWeapon(const WeaponInstance& weapon);
+    
     // 卸下装备
     // 返回被卸下的装备ID
     std::string unequip(EquipmentSlot slot);
@@ -195,11 +368,18 @@ public:
     // 卸下装备并返回ItemStack
     ItemStack unequipToStack(EquipmentSlot slot);
     
+    // 卸下武器并返回WeaponInstance
+    WeaponInstance unequipWeapon();
+    
     // 获取指定槽位的装备ID
     const std::string& getEquippedItem(EquipmentSlot slot) const;
     
     // 检查槽位是否有装备
     bool hasEquipment(EquipmentSlot slot) const;
+    
+    // 获取当前武器实例
+    const WeaponInstance* getEquippedWeapon() const;
+    WeaponInstance* getEquippedWeaponMutable();
     
     // 获取总属性加成
     EquipmentStats getTotalStats() const;
@@ -207,6 +387,7 @@ public:
     // 检查是否有无视防御效果
     bool hasIgnoreDefense() const;
     float getIgnoreDefenseRate() const;
+    int getIgnoreDefenseValue() const;
     
     // 获取当前武器类型
     WeaponType getCurrentWeaponType() const;
@@ -217,6 +398,8 @@ public:
 
 private:
     std::array<std::string, static_cast<size_t>(EquipmentSlot::Count)> equippedItems;
+    WeaponInstance equippedWeapon;  // 当前装备的武器实例
+    bool hasWeaponInstance;         // 是否有武器实例
     EquipCallback onEquip;
     EquipCallback onUnequip;
 };
@@ -264,6 +447,7 @@ private:
     void renderSlot(sf::RenderWindow& window, EquipmentSlot slot, 
                    const sf::Vector2f& pos, const sf::Vector2f& size);
     void renderTooltip(sf::RenderWindow& window);
+    void renderWeaponTooltip(sf::RenderWindow& window);
     sf::Vector2f getSlotPosition(EquipmentSlot slot) const;
     EquipmentSlot getSlotAtPosition(const sf::Vector2f& pos) const;
 

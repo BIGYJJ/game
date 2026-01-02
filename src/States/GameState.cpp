@@ -422,6 +422,11 @@ void GameState::handleInput(const sf::Event& event) {
         statsPanel->handleEvent(event, game->getWindow());
     }
     
+    if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Right) {
+        handlePetCommand(event);
+    }
+
+
     if (event.type == sf::Event::KeyPressed) {
         switch (event.key.code) {
             case sf::Keyboard::Escape:
@@ -611,8 +616,9 @@ void GameState::update(float dt) {
         pos.y = std::max(margin, std::min(pos.y, mapSize.y - margin));
         player->setPosition(pos);
         
-        // Handle attack - check for tree hits
         handlePlayerAttack();
+
+        handlePetAttack();
         
         // Handle item pickup
         handleItemPickup();
@@ -668,6 +674,37 @@ void GameState::update(float dt) {
         
         // 宠物碰撞处理（与兔子的推挤碰撞）
         Pet* pet = petManager->getCurrentPet();
+        if (pet && pet->isInCombat() && rabbitManager) {
+            // 寻找最近的活兔子
+            Rabbit* nearestRabbit = nullptr;
+            float minDistance = 300.0f; // 索敌范围 300 像素
+            sf::Vector2f petPos = pet->getPosition();
+            
+            for (auto& rabbit : rabbitManager->getRabbits()) {
+                if (rabbit->isDead()) continue;
+                
+                sf::Vector2f rPos = rabbit->getPosition();
+                float dx = rPos.x - petPos.x;
+                float dy = rPos.y - petPos.y;
+                float dist = std::sqrt(dx*dx + dy*dy);
+                
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    nearestRabbit = rabbit.get();
+                }
+            }
+            
+            // 如果找到了最近的敌人，告诉宠物“去打它”
+            if (nearestRabbit) {
+                sf::FloatRect bounds = nearestRabbit->getBounds();
+                sf::Vector2f targetCenter(bounds.left + bounds.width/2, bounds.top + bounds.height/2);
+                
+                // 使用普通的目标设置，而不是 commandAttack
+                // 这样不会干扰玩家随后的右键点击
+                pet->setAttackTarget(targetCenter); 
+            }
+        }
+
         if (pet && rabbitManager) {
             sf::FloatRect petBox = pet->getCollisionBox();
             
@@ -1131,6 +1168,20 @@ void GameState::initRabbits() {
             // 受伤并击退（传入攻击者位置）
             player->receiveDamage(actualDamage, rabbitCenter);
             
+            if (petManager) {
+                Pet* pet = petManager->getCurrentPet();
+                if (pet) {
+                    pet->enterCombatMode(3.0f); // <--- 关键：激活持续战斗
+                    
+                    // 并且立刻把攻击者设为目标
+                    pet->commandAttack(r.getPosition());
+                    
+                    if (eventLogPanel) {
+                        eventLogPanel->addMessage(pet->getName() + " 护主心切，进入战斗状态!", EventType::Combat);
+                    }
+                }
+            }
+
             if (eventLogPanel) {
                 std::string attackMsg;
                 if (usedSkill) {
@@ -1457,67 +1508,7 @@ void GameState::handlePlayerAttack() {
             }
         }
         
-        // 宠物协同攻击敌人
-        if (petManager && rabbitManager) {
-            Pet* pet = petManager->getCurrentPet();
-            if (pet && pet->hasJustAttacked()) {
-                float petDamage = pet->getAttack();
-                sf::Vector2f petPos = pet->getPosition();
-                float petAttackRange = pet->getAttackRange();
-                
-                // 宠物攻击范围内的兔子
-                auto petHitRabbits = rabbitManager->damageRabbitsInRange(petPos, petAttackRange, petDamage, false);
-                
-                for (auto* rabbit : petHitRabbits) {
-                    if (rabbit->isDead()) {
-                        // 兔子死亡，生成掉落物
-                        auto drops = rabbit->generateDrops();
-                        
-                        if (!drops.empty() && droppedItemManager) {
-                            sf::Vector2f rabbitPos = rabbit->getPosition();
-                            droppedItemManager->spawnItems(drops, rabbitPos.x, rabbitPos.y);
-                            
-                            if (eventLogPanel) {
-                                eventLogPanel->addMessage(pet->getName() + " 击杀了 " + rabbit->getName(), EventType::Combat);
-                                for (const auto& drop : drops) {
-                                    const ItemData* data = ItemDatabase::getInstance().getItemData(drop.first);
-                                    if (data) {
-                                        eventLogPanel->addItemObtained(data->name, drop.second, drop.first);
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // 获得经验和金币（宠物击杀也有奖励）
-                        int exp = rabbit->getExpReward();
-                        int gold = rabbit->getGoldReward();
-                        
-                        int oldLevel = player->getStats().getLevel();
-                        player->getStats().addExp(exp);
-                        int newLevel = player->getStats().getLevel();
-                        player->getStats().addGold(gold);
-                        
-                        // 宠物也获得经验
-                        pet->addExp(exp / 2);
-                        
-                        if (eventLogPanel) {
-                            if (exp > 0) eventLogPanel->addExpObtained(exp, "宠物击杀");
-                            if (gold > 0) eventLogPanel->addGoldObtained(gold);
-                            if (newLevel > oldLevel) eventLogPanel->addLevelUp(newLevel);
-                        }
-                        
-                        std::cout << "[Pet Attack] " << pet->getName() << " killed rabbit! +" << exp << " EXP" << std::endl;
-                    }
-                }
-                
-                if (!petHitRabbits.empty()) {
-                    std::cout << "[Pet Attack] " << pet->getName() << " hit " << petHitRabbits.size() 
-                              << " rabbit(s) for " << petDamage << " damage" << std::endl;
-                }
-                
-                pet->clearJustAttacked();
-            }
-        }
+        
     }
     
     wasAttacking = isCurrentlyAttacking;
@@ -1965,5 +1956,93 @@ void GameState::updatePetPanelItemCounts() {
     if (hatchPanel) {
         hatchPanel->setEssenceCount(1, rabbitEssence);
         hatchPanel->setEnhancerCount(rabbitFur);  // 使用兔毛数量
+    }
+}
+
+void GameState::handlePetCommand(const sf::Event& event) {
+    if (!player || !petManager || !camera || !rabbitManager) return;
+    
+    // 获取当前宠物
+    Pet* pet = petManager->getCurrentPet();
+    if (!pet) return;
+
+    // 获取鼠标在世界坐标中的位置
+    sf::Vector2i mouseScreenPos = sf::Mouse::getPosition(game->getWindow());
+    sf::Vector2f mouseWorldPos = game->getWindow().mapPixelToCoords(mouseScreenPos, camera->getView());
+
+    // 1. 检查鼠标是否点到了兔子
+    Rabbit* targetRabbit = nullptr;
+    for (auto& rabbit : rabbitManager->getRabbits()) {
+        if (!rabbit->isDead() && rabbit->getBounds().contains(mouseWorldPos)) {
+            targetRabbit = rabbit.get();
+            break;
+        }
+    }
+
+    if (targetRabbit) {
+        // 获取兔子中心点
+        sf::FloatRect bounds = targetRabbit->getBounds();
+        sf::Vector2f targetCenter(bounds.left + bounds.width/2, bounds.top + bounds.height/2);
+        
+        // 发送指令
+        pet->commandAttack(targetCenter);
+        
+        // 显示特效或日志
+        if (eventLogPanel) {
+            eventLogPanel->addMessage("指挥 " + pet->getName() + " 攻击目标!", EventType::System);
+        }
+    } else {
+        // 如果点空地，也可以让宠物移动过去（可选）
+        // pet->commandAttack(mouseWorldPos); 
+    }
+}
+
+void GameState::handlePetAttack() {
+    if (!petManager || !rabbitManager) return;
+
+    Pet* pet = petManager->getCurrentPet();
+    
+    // 检查宠物是否在本帧挥出了攻击
+    if (pet && pet->hasJustAttacked()) {
+        float damage = pet->performAttack(); // 获取计算过暴击/技能的伤害
+        sf::Vector2f petPos = pet->getPosition();
+        float attackRange = pet->getAttackRange(); 
+        
+        // 关键：伤害判定圆心是宠物，不是玩家
+        auto hitRabbits = rabbitManager->damageRabbitsInRange(petPos, attackRange, damage, false);
+        
+        if (hitRabbits.empty()) {
+            // 如果没打到人（可能距离不够），尝试判定是否是“指定攻击”
+            // 有时候动画播放了但距离差一点点，稍微放宽一点判定
+            if (pet->hasCommandedTarget()) {
+                 hitRabbits = rabbitManager->damageRabbitsInRange(pet->getCommandedTarget(), 32.0f, damage, false);
+            }
+        }
+        
+        for (auto* rabbit : hitRabbits) {
+            if (rabbit->isDead()) {
+                // 处理掉落
+                auto drops = rabbit->generateDrops();
+                if (!drops.empty() && droppedItemManager) {
+                    droppedItemManager->spawnItems(drops, rabbit->getPosition().x, rabbit->getPosition().y);
+                    // ... (原有日志代码) ...
+                }
+                
+                // 处理经验
+                int exp = rabbit->getExpReward();
+                int gold = rabbit->getGoldReward();
+                
+                if (player) {
+                    player->getStats().addExp(exp);
+                    player->getStats().addGold(gold);
+                    pet->addExp(exp / 2); // 宠物分得经验
+                }
+                
+                std::cout << "[Pet] " << pet->getName() << " 独立击杀了兔子!" << std::endl;
+            }
+        }
+        
+        // 重要：清除攻击标志，防止一刀多判
+        pet->clearJustAttacked();
     }
 }

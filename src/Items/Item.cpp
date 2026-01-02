@@ -97,13 +97,249 @@ void ItemDatabase::initialize() {
         rabbitMeat.name = "兔肉";
         rabbitMeat.description = "新鲜的兔肉，可以烹饪食用";
         rabbitMeat.type = ItemType::Consumable;
-        rabbitMeat.rarity = ItemRarity::Uncommon;
+        rabbitMeat.rarity = ItemRarity::Uncommon;  // 优秀
         rabbitMeat.maxStack = 20;
         rabbitMeat.sellPrice = 15;
         rabbitMeat.buyPrice = 40;
         rabbitMeat.texturePath = "assets/consumables/rabbit_meat.png";
         rabbitMeat.effects.push_back(ConsumableEffect(EffectType::RestoreHealth, 30));
         registerItem(rabbitMeat);
+    }
+    
+    // ========================================
+    // 家禽掉落物品
+    // ========================================
+    
+    // 谷物
+    {
+        ItemData cereal;
+        cereal.id = "cereal";
+        cereal.name = "谷物";
+        cereal.description = "可以喂养家禽的谷物";
+        cereal.type = ItemType::Material;
+        cereal.rarity = ItemRarity::Common;
+        cereal.maxStack = 99;
+        cereal.sellPrice = 20;
+        cereal.buyPrice = 50;
+        cereal.texturePath = "assets/materials/cereal.png";
+        registerItem(cereal);
+    }
+    
+    // 虫子
+    {
+        ItemData bug;
+        bug.id = "bug";
+        bug.name = "虫子";
+        bug.description = "小鸡喜欢吃的虫子";
+        bug.type = ItemType::Material;
+        bug.rarity = ItemRarity::Common;
+        bug.maxStack = 99;
+        bug.sellPrice = 20;
+        bug.buyPrice = 50;
+        bug.texturePath = "assets/materials/bug.png";
+        registerItem(bug);
+    }
+    
+    // 鸡肉
+    {
+        ItemData chicken;
+        chicken.id = "chicken";
+        chicken.name = "鸡肉";
+        chicken.description = "新鲜的鸡肉";
+        chicken.type = ItemType::Consumable;
+        chicken.rarity = ItemRarity::Uncommon;  // 良好
+        chicken.maxStack = 99;
+        chicken.sellPrice = 30;
+        chicken.buyPrice = 80;
+        chicken.texturePath = "assets/materials/chicken.png";
+        chicken.effects.push_back(ConsumableEffect(EffectType::RestoreHealth, 25));
+        registerItem(chicken);
+    }
+    
+    // 鸡蛋
+    {
+        ItemData egg;
+        egg.id = "egg";
+        egg.name = "鸡蛋";
+        egg.description = "母鸡产出的鸡蛋";
+        egg.type = ItemType::Material;
+        egg.rarity = ItemRarity::Common;
+        egg.maxStack = 99;
+        egg.sellPrice = 15;
+        egg.buyPrice = 40;
+        egg.texturePath = "assets/materials/egg.png";
+        registerItem(egg);
+    }
+    
+    // 猪肉
+    {
+        ItemData pork;
+        pork.id = "pork";
+        pork.name = "猪肉";
+        pork.description = "新鲜的猪肉";
+        pork.type = ItemType::Consumable;
+        pork.rarity = ItemRarity::Uncommon;  // 良好
+        pork.maxStack = 99;
+        pork.sellPrice = 50;
+        pork.buyPrice = 120;
+        pork.texturePath = "assets/materials/pork.png";
+        pork.effects.push_back(ConsumableEffect(EffectType::RestoreHealth, 35));
+        registerItem(pork);
+    }
+    
+    // 猪皮
+    {
+        ItemData pigskin;
+        pigskin.id = "pigskin";
+        pigskin.name = "猪皮";
+        pigskin.description = "猪的皮，可用于制作皮革制品";
+        pigskin.type = ItemType::Material;
+        pigskin.rarity = ItemRarity::Uncommon;  // 良好
+        pigskin.maxStack = 99;
+        pigskin.sellPrice = 100;
+        pigskin.buyPrice = 250;
+        pigskin.texturePath = "assets/materials/pigskin.png";
+        registerItem(pigskin);
+    }
+    
+    // 猪后腿
+    {
+        ItemData pigHindLeg;
+        pigHindLeg.id = "pig_hind_leg";
+        pigHindLeg.name = "猪后腿";
+        pigHindLeg.description = "猪的后腿，非常珍贵的食材";
+        pigHindLeg.type = ItemType::Material;
+        pigHindLeg.rarity = ItemRarity::Rare;  // 优秀
+        pigHindLeg.maxStack = 99;
+        pigHindLeg.sellPrice = 300;
+        pigHindLeg.buyPrice = 800;
+        pigHindLeg.texturePath = "assets/materials/pig_hind_leg.png";
+        registerItem(pigHindLeg);
+    }
+    
+    // 骨头
+    {
+        ItemData bone;
+        bone.id = "bone";
+        bone.name = "骨头";
+        bone.description = "动物的骨头，可用于制作工具";
+        bone.type = ItemType::Material;
+        bone.rarity = ItemRarity::Uncommon;  // 良好
+        bone.maxStack = 99;
+        bone.sellPrice = 120;
+        bone.buyPrice = 300;
+        bone.texturePath = "assets/materials/bone.png";
+        registerItem(bone);
+    }
+    
+    // 猪心
+    {
+        ItemData porkHeart;
+        porkHeart.id = "pork_heart";
+        porkHeart.name = "猪心";
+        porkHeart.description = "猪的心脏，稀有的掉落物";
+        porkHeart.type = ItemType::Material;
+        porkHeart.rarity = ItemRarity::Rare;  // 优秀
+        porkHeart.maxStack = 99;
+        porkHeart.sellPrice = 360;
+        porkHeart.buyPrice = 900;
+        porkHeart.texturePath = "assets/materials/pork_heart.png";
+        registerItem(porkHeart);
+    }
+    
+    // 臭猪肉
+    {
+        ItemData stinkyPork;
+        stinkyPork.id = "stinky_pork";
+        stinkyPork.name = "臭猪肉";
+        stinkyPork.description = "臭猪的肉，有特殊的气味";
+        stinkyPork.type = ItemType::Material;
+        stinkyPork.rarity = ItemRarity::Uncommon;  // 良好
+        stinkyPork.maxStack = 99;
+        stinkyPork.sellPrice = 150;
+        stinkyPork.buyPrice = 400;
+        stinkyPork.texturePath = "assets/materials/stinky_pork.png";
+        registerItem(stinkyPork);
+    }
+    
+    // 牛肉
+    {
+        ItemData beef;
+        beef.id = "beef";
+        beef.name = "牛肉";
+        beef.description = "新鲜的牛肉";
+        beef.type = ItemType::Consumable;
+        beef.rarity = ItemRarity::Uncommon;  // 良好
+        beef.maxStack = 99;
+        beef.sellPrice = 180;
+        beef.buyPrice = 450;
+        beef.texturePath = "assets/materials/beef.png";
+        beef.effects.push_back(ConsumableEffect(EffectType::RestoreHealth, 50));
+        registerItem(beef);
+    }
+    
+    // 耗牛毛
+    {
+        ItemData yakFur;
+        yakFur.id = "yak_fur";
+        yakFur.name = "耗牛毛";
+        yakFur.description = "耗牛的毛发，可用于制作保暖物品";
+        yakFur.type = ItemType::Material;
+        yakFur.rarity = ItemRarity::Uncommon;  // 良好
+        yakFur.maxStack = 99;
+        yakFur.sellPrice = 200;
+        yakFur.buyPrice = 500;
+        yakFur.texturePath = "assets/materials/yak_fur.png";
+        registerItem(yakFur);
+    }
+    
+    // ========================================
+    // 冶炼材料
+    // ========================================
+    
+    // 生铁
+    {
+        ItemData pigIron;
+        pigIron.id = "pig_iron";
+        pigIron.name = "生铁";
+        pigIron.description = "未经精炼的铁，可以进一步加工成钢铁";
+        pigIron.type = ItemType::Material;
+        pigIron.rarity = ItemRarity::Uncommon;  // 良好
+        pigIron.maxStack = 99;
+        pigIron.sellPrice = 130;
+        pigIron.buyPrice = 350;
+        pigIron.texturePath = "assets/materials/pig_iron.png";
+        registerItem(pigIron);
+    }
+    
+    // 钢铁
+    {
+        ItemData steel;
+        steel.id = "steel";
+        steel.name = "钢铁";
+        steel.description = "精炼过的钢铁，可用于打造武器";
+        steel.type = ItemType::Material;
+        steel.rarity = ItemRarity::Rare;  // 优秀
+        steel.maxStack = 99;
+        steel.sellPrice = 200;
+        steel.buyPrice = 550;
+        steel.texturePath = "assets/materials/steel.png";
+        registerItem(steel);
+    }
+    
+    // 煤炭
+    {
+        ItemData coal;
+        coal.id = "coal";
+        coal.name = "煤炭";
+        coal.description = "用于冶炼的燃料";
+        coal.type = ItemType::Material;
+        coal.rarity = ItemRarity::Common;
+        coal.maxStack = 99;
+        coal.sellPrice = 80;
+        coal.buyPrice = 200;
+        coal.texturePath = "assets/materials/coal.png";
+        registerItem(coal);
     }
     
     {
@@ -186,67 +422,70 @@ void ItemDatabase::initialize() {
         registerItem(healthPotion);
     }
     
+    // 面包
+    {
+        ItemData bread;
+        bread.id = "bread";
+        bread.name = "面包";
+        bread.description = "谷物做的面包，可以填饱肚子";
+        bread.type = ItemType::Consumable;
+        bread.rarity = ItemRarity::Common;
+        bread.maxStack = 99;
+        bread.sellPrice = 60;
+        bread.buyPrice = 150;
+        bread.texturePath = "assets/consumables/bread.png";
+        bread.effects.push_back(ConsumableEffect(EffectType::RestoreStamina, 30));  // 饥饿度增加30点
+        registerItem(bread);
+    }
+    
     // ========================================
     // 装备类物品 (Equipment) - 武器
     // 存放目录: assets/equipment/
     // ========================================
     
-    // 斧头系列 (无视防御)
+    // 斧头 - 无视树木类防御
     {
-        ItemData woodenAxe;
-        woodenAxe.id = "wooden_axe";
-        woodenAxe.name = "木斧";
-        woodenAxe.description = "简单的木制斧头，可以无视目标的防御";
-        woodenAxe.type = ItemType::Equipment;
-        woodenAxe.rarity = ItemRarity::Common;
-        woodenAxe.maxStack = 1;
-        woodenAxe.sellPrice = 15;
-        woodenAxe.buyPrice = 50;
-        woodenAxe.texturePath = "assets/equipment/wooden_axe.png";
-        registerItem(woodenAxe);
+        ItemData axe;
+        axe.id = "axe";
+        axe.name = "斧头";
+        axe.description = "用于砍伐的工具，可以无视树木类的防御值";
+        axe.type = ItemType::Equipment;
+        axe.rarity = ItemRarity::Common;  // 白色
+        axe.maxStack = 1;
+        axe.sellPrice = 50;
+        axe.buyPrice = 150;
+        axe.texturePath = "assets/weapon/axe.png";
+        registerItem(axe);
     }
     
+    // 小刀 - 有资质系统
     {
-        ItemData ironAxe;
-        ironAxe.id = "iron_axe";
-        ironAxe.name = "铁斧";
-        ironAxe.description = "坚固的铁制斧头，可以无视目标的防御";
-        ironAxe.type = ItemType::Equipment;
-        ironAxe.rarity = ItemRarity::Uncommon;
-        ironAxe.maxStack = 1;
-        ironAxe.sellPrice = 50;
-        ironAxe.buyPrice = 200;
-        ironAxe.texturePath = "assets/equipment/iron_axe.png";
-        registerItem(ironAxe);
+        ItemData knife;
+        knife.id = "knife";
+        knife.name = "小刀";
+        knife.description = "锋利的小刀，可以通过锻造获得不同资质";
+        knife.type = ItemType::Equipment;
+        knife.rarity = ItemRarity::Common;  // 基础白色，实际资质在装备系统中处理
+        knife.maxStack = 1;
+        knife.sellPrice = 80;
+        knife.buyPrice = 250;
+        knife.texturePath = "assets/weapon/knife.png";
+        registerItem(knife);
     }
     
-    // 剑系列
+    // 长矛 - 有资质系统，无视防御值2
     {
-        ItemData woodenSword;
-        woodenSword.id = "wooden_sword";
-        woodenSword.name = "木剑";
-        woodenSword.description = "新手战士的第一把武器";
-        woodenSword.type = ItemType::Equipment;
-        woodenSword.rarity = ItemRarity::Common;
-        woodenSword.maxStack = 1;
-        woodenSword.sellPrice = 10;
-        woodenSword.buyPrice = 40;
-        woodenSword.texturePath = "assets/equipment/wooden_sword.png";
-        registerItem(woodenSword);
-    }
-    
-    {
-        ItemData ironSword;
-        ironSword.id = "iron_sword";
-        ironSword.name = "铁剑";
-        ironSword.description = "标准的铁制长剑";
-        ironSword.type = ItemType::Equipment;
-        ironSword.rarity = ItemRarity::Uncommon;
-        ironSword.maxStack = 1;
-        ironSword.sellPrice = 45;
-        ironSword.buyPrice = 180;
-        ironSword.texturePath = "assets/equipment/iron_sword.png";
-        registerItem(ironSword);
+        ItemData spear;
+        spear.id = "spear";
+        spear.name = "长矛";
+        spear.description = "长杆武器，攻击距离较远，可以无视部分防御值";
+        spear.type = ItemType::Equipment;
+        spear.rarity = ItemRarity::Common;  // 基础白色
+        spear.maxStack = 1;
+        spear.sellPrice = 120;
+        spear.buyPrice = 400;
+        spear.texturePath = "assets/weapon/spear.png";
+        registerItem(spear);
     }
     
     // ========================================
@@ -426,12 +665,27 @@ void ItemDatabase::initialize() {
         rabbitEssence.name = "兔子精元";
         rabbitEssence.description = "蕴含兔子灵魂的神秘精元，可用于孵化宠物兔。掉落概率：2%";
         rabbitEssence.type = ItemType::Material;
-        rabbitEssence.rarity = ItemRarity::Rare;
+        rabbitEssence.rarity = ItemRarity::Common;  // 普通
         rabbitEssence.maxStack = 99;
-        rabbitEssence.sellPrice = 50;
-        rabbitEssence.buyPrice = 200;
+        rabbitEssence.sellPrice = 500;  // 更新出售价格
+        rabbitEssence.buyPrice = 2000;
         rabbitEssence.texturePath = "assets/pet/rabbit_essence.png";
         registerItem(rabbitEssence);
+    }
+    
+    // 臭猪精元
+    {
+        ItemData stinkyPorkEssence;
+        stinkyPorkEssence.id = "stinky_pork_essence";
+        stinkyPorkEssence.name = "臭猪精元";
+        stinkyPorkEssence.description = "蕴含臭猪灵魂的神秘精元，可用于孵化宠物臭猪";
+        stinkyPorkEssence.type = ItemType::Material;
+        stinkyPorkEssence.rarity = ItemRarity::Common;  // 普通
+        stinkyPorkEssence.maxStack = 99;
+        stinkyPorkEssence.sellPrice = 800;
+        stinkyPorkEssence.buyPrice = 3200;
+        stinkyPorkEssence.texturePath = "assets/materials/stinky_pork_essence.png";
+        registerItem(stinkyPorkEssence);
     }
     
     // 孵化强化剂 - 通用（已废弃，保留兼容）
@@ -500,6 +754,56 @@ void ItemDatabase::initialize() {
         petHealthPotion.texturePath = "assets/pet/pet_health_potion.png";
         petHealthPotion.effects.push_back(ConsumableEffect(EffectType::RestoreHealth, 50));
         registerItem(petHealthPotion);
+    }
+    
+    // ========================================
+    // 武器强化相关物品
+    // 存放目录: assets/materials/
+    // ========================================
+    
+    // 强化石
+    {
+        ItemData enhanceStone;
+        enhanceStone.id = "enhance_stone";
+        enhanceStone.name = "强化石";
+        enhanceStone.description = "用于强化武器的神秘石头。强化消耗公式：10 + (当前等级² × 2)";
+        enhanceStone.type = ItemType::Material;
+        enhanceStone.rarity = ItemRarity::Uncommon;  // 良好
+        enhanceStone.maxStack = 999;
+        enhanceStone.sellPrice = 50;
+        enhanceStone.buyPrice = 150;
+        enhanceStone.texturePath = "assets/materials/enhance_stone.png";
+        registerItem(enhanceStone);
+    }
+    
+    // 武器魂（普通）
+    {
+        ItemData weaponSoul;
+        weaponSoul.id = "weapon_soul";
+        weaponSoul.name = "普通武器魂";
+        weaponSoul.description = "蕴含武器灵魂的神秘物质。锻造时添加可提升高资质概率（最多30个）";
+        weaponSoul.type = ItemType::Material;
+        weaponSoul.rarity = ItemRarity::Uncommon;  // 良好
+        weaponSoul.maxStack = 99;
+        weaponSoul.sellPrice = 100;
+        weaponSoul.buyPrice = 300;
+        weaponSoul.texturePath = "assets/materials/weapon_soul.png";
+        registerItem(weaponSoul);
+    }
+    
+    // 高级武器魂
+    {
+        ItemData advancedWeaponSoul;
+        advancedWeaponSoul.id = "advanced_weapon_soul";
+        advancedWeaponSoul.name = "高级武器魂";
+        advancedWeaponSoul.description = "更强大的武器魂，相当于3个普通武器魂的效果";
+        advancedWeaponSoul.type = ItemType::Material;
+        advancedWeaponSoul.rarity = ItemRarity::Rare;  // 优秀
+        advancedWeaponSoul.maxStack = 99;
+        advancedWeaponSoul.sellPrice = 350;
+        advancedWeaponSoul.buyPrice = 1000;
+        advancedWeaponSoul.texturePath = "assets/materials/advanced_weapon_soul.png";
+        registerItem(advancedWeaponSoul);
     }
     
     initialized = true;

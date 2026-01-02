@@ -288,6 +288,9 @@ void Pet::updateFollowAI(float dt, const sf::Vector2f& ownerPos) {
 }
 
 void Pet::updateAttackAI(float dt, bool ownerAttacking) {
+    
+    
+
     // 更新攻击冷却
     if (attackCooldown > 0) {
         attackCooldown -= dt;
@@ -296,65 +299,58 @@ void Pet::updateAttackAI(float dt, bool ownerAttacking) {
     // 重置justAttacked标志（每帧开始时）
     justAttacked = false;
     
+    // 判定是否应该攻击
+    // 条件：(主人在攻击 OR 有目标 OR 处于战斗模式) AND 冷却完毕 AND 本帧还没打
+    // 注意：我们将 "combatTimer > 0" 加入判定，让它更主动
+    bool shouldAttack = (ownerAttacking || hasTarget || combatTimer > 0) 
+                        && attackCooldown <= 0 
+                        && !hasAttackedThisCycle;
     // 如果有玩家指挥的目标，优先处理
     if (hasCommandTarget) {
         // 移动到目标位置附近
         sf::Vector2f diff = commandTargetPos - position;
         float distance = std::sqrt(diff.x * diff.x + diff.y * diff.y);
         
-        if (distance > PET_ATTACK_RANGE * 0.8f) {
-            // 还没到攻击范围，继续移动
-            animState = PetAnimState::Follow;
-            sf::Vector2f dir = diff / distance;
-            position += dir * followSpeed * 1.5f * dt;  // 追击时速度加快
-            
-            // 更新朝向
-            if (std::abs(diff.x) > std::abs(diff.y)) {
-                direction = diff.x > 0 ? PetDirection::Right : PetDirection::Left;
-            } else {
-                direction = diff.y > 0 ? PetDirection::Down : PetDirection::Up;
-            }
-        } else if (attackCooldown <= 0) {
-            // 在攻击范围内，执行攻击
+        if (distance <= PET_ATTACK_RANGE && attackCooldown <= 0) {
             animState = PetAnimState::Attack;
             justAttacked = true;
             attackCooldown = ATTACK_COOLDOWN_TIME;
             
-            float damage = performAttack();
-            std::cout << name << " 指挥攻击! 造成 " << damage << " 点伤害" << std::endl;
+            performAttack(); // 播放动画，伤害在 GameState 处理
             
-            // 攻击完成后清除指挥目标
-            hasCommandTarget = false;
+            // [修改] 不要立即清除 hasCommandTarget，让它持续攻击直到玩家取消或怪物死掉
+            // hasCommandTarget = false; <--- 删除这行
+            
+            // 攻击后激活战斗模式，这样就算 commandTarget 清除了，它也会继续打附近的怪
+            enterCombatMode(3.0f); 
         }
         return;
     }
     
-    // 当主人攻击时，或者有攻击目标时，宠物也攻击
-    bool shouldAttack = (ownerAttacking || hasTarget) && attackCooldown <= 0 && !hasAttackedThisCycle;
-    
     if (shouldAttack) {
+        // 只有当真正有目标（由 GameState 设置 setAttackTarget）或者主人在攻击时才挥动
+        // 或者是为了配合动画
         animState = PetAnimState::Attack;
         hasAttackedThisCycle = true;
-        justAttacked = true;  // 标记刚完成攻击
+        justAttacked = true;  
         attackCooldown = ATTACK_COOLDOWN_TIME;
         
         // 执行攻击
-        float damage = performAttack();
-        std::cout << name << " 攻击! 造成 " << damage << " 点伤害" << std::endl;
+        performAttack();
+        // std::cout << name << " 攻击!" << std::endl; // 调试用
+        
+        // 攻击一次，续杯战斗时间
+        enterCombatMode(3.0f);
     }
     
-    // 主人不再攻击且没有目标时重置
-    if (!ownerAttacking && !hasTarget) {
+    // 主人不再攻击且没有目标时重置 -> 改为：战斗时间结束才重置
+    if (!ownerAttacking && !hasTarget && combatTimer <= 0) {
         hasAttackedThisCycle = false;
         if (animState == PetAnimState::Attack) {
             animState = PetAnimState::Idle;
         }
     }
     
-    // 清除攻击目标（每帧只攻击一次）
-    if (hasTarget && justAttacked) {
-        hasTarget = false;
-    }
 }
 
 // 指挥宠物攻击指定目标

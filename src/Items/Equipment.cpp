@@ -1,6 +1,8 @@
 #include "Equipment.h"
 #include <iostream>
 #include <algorithm>
+#include <ctime>
+#include <sstream>
 
 // ============================================================================
 // 颜色常量
@@ -27,73 +29,71 @@ void EquipmentManager::initialize() {
     std::cout << "[EquipmentManager] Initializing equipment definitions..." << std::endl;
     
     // ========================================
-    // 武器 - 斧头系列（无视防御）
+    // 武器 - 斧头（无视树木类防御）
+    // 资质：白色100%，无攻击力
     // ========================================
     {
         EquipmentData axe;
-        axe.id = "wooden_axe";
-        axe.name = "木斧";
-        axe.description = "简单的木制斧头，可以无视目标的防御";
+        axe.id = "axe";
+        axe.name = "斧头";
+        axe.description = "用于砍伐的工具，可以无视树木类的防御值";
         axe.slot = EquipmentSlot::Weapon;
         axe.weaponType = WeaponType::Axe;
-        axe.rarity = ItemRarity::Common;
+        axe.rarity = ItemRarity::Common;  // 白色100%
         axe.requiredLevel = 1;
-        axe.stats.attack = 8;
-        axe.stats.ignoreDefense = true;
-        axe.stats.ignoreDefenseRate = 1.0f;  // 完全无视防御
-        axe.texturePath = "assets/equipment/wooden_axe.png";
-        registerEquipment(axe);
-    }
-    
-    {
-        EquipmentData axe;
-        axe.id = "iron_axe";
-        axe.name = "铁斧";
-        axe.description = "坚固的铁制斧头，可以无视目标的防御";
-        axe.slot = EquipmentSlot::Weapon;
-        axe.weaponType = WeaponType::Axe;
-        axe.rarity = ItemRarity::Uncommon;
-        axe.requiredLevel = 10;
-        axe.requiredStrength = 15;
-        axe.stats.attack = 18;
-        axe.stats.strength = 2;
-        axe.stats.ignoreDefense = true;
+        axe.stats.attack = 0;  // 无攻击力
+        axe.stats.ignoreDefense = true;  // 无视树木类防御
         axe.stats.ignoreDefenseRate = 1.0f;
-        axe.texturePath = "assets/equipment/iron_axe.png";
+        axe.texturePath = "assets/weapon/axe.png";
         registerEquipment(axe);
     }
     
     // ========================================
-    // 武器 - 剑系列
+    // 武器 - 小刀（有资质系统，可强化）
+    // 资质概率（怪物掉落）：白70%，绿20%，蓝10%
+    // 资质概率（锻造）：白60%，绿30%，蓝10%
+    // 攻击力：白(1-3)，绿(2-5)，蓝(3-7)，橙(5-10)，紫(7-12)，黄(10-15)，红(18-22)
+    // 强化最高等级：3，每次强化+3攻击力
     // ========================================
     {
-        EquipmentData sword;
-        sword.id = "wooden_sword";
-        sword.name = "木剑";
-        sword.description = "新手战士的第一把武器";
-        sword.slot = EquipmentSlot::Weapon;
-        sword.weaponType = WeaponType::Sword;
-        sword.rarity = ItemRarity::Common;
-        sword.requiredLevel = 1;
-        sword.stats.attack = 5;
-        sword.texturePath = "assets/equipment/wooden_sword.png";
-        registerEquipment(sword);
+        EquipmentData knife;
+        knife.id = "knife";
+        knife.name = "小刀";
+        knife.description = "锋利的小刀，可以通过锻造获得不同资质";
+        knife.slot = EquipmentSlot::Weapon;
+        knife.weaponType = WeaponType::Sword;  // 类似单手剑
+        knife.rarity = ItemRarity::Common;  // 基础白色
+        knife.requiredLevel = 1;
+        // 基础攻击力（白色资质中间值）
+        knife.stats.attack = 2;
+        knife.texturePath = "assets/weapon/knife.png";
+        registerEquipment(knife);
     }
     
+    // ========================================
+    // 武器 - 长矛（有资质系统，无视防御值2）
+    // 资质概率（怪物掉落）：白70%，绿20%，蓝10%
+    // 资质概率（锻造）：白50%，绿35%，蓝15%
+    // 攻击力：白(3-5)，绿(4-8)，蓝(6-10)，橙(8-13)，紫(13-18)，黄(18-20)，红(22-25)
+    // 无视防御值：2
+    // 强化最高等级：8，每次强化+3攻击力，满级额外吸血+2%
+    // ========================================
     {
-        EquipmentData sword;
-        sword.id = "iron_sword";
-        sword.name = "铁剑";
-        sword.description = "标准的铁制长剑";
-        sword.slot = EquipmentSlot::Weapon;
-        sword.weaponType = WeaponType::Sword;
-        sword.rarity = ItemRarity::Uncommon;
-        sword.requiredLevel = 10;
-        sword.requiredStrength = 10;
-        sword.stats.attack = 15;
-        sword.stats.strength = 1;
-        sword.texturePath = "assets/equipment/iron_sword.png";
-        registerEquipment(sword);
+        EquipmentData spear;
+        spear.id = "spear";
+        spear.name = "长矛";
+        spear.description = "长杆武器，攻击距离较远，可以无视部分防御值";
+        spear.slot = EquipmentSlot::Weapon;
+        spear.weaponType = WeaponType::Spear;
+        spear.rarity = ItemRarity::Common;  // 基础白色
+        spear.requiredLevel = 1;
+        // 基础攻击力（白色资质中间值）
+        spear.stats.attack = 4;
+        // 无视防御值2（特殊属性）
+        spear.stats.ignoreDefense = true;
+        spear.stats.ignoreDefenseRate = 0.0f;  // 不是完全无视，而是固定减2
+        spear.texturePath = "assets/weapon/spear.png";
+        registerEquipment(spear);
     }
     
     // ========================================
@@ -279,6 +279,82 @@ void EquipmentManager::initialize() {
     
     initialized = true;
     std::cout << "[EquipmentManager] Registered " << equipments.size() << " equipments" << std::endl;
+    
+    // ========================================
+    // 初始化武器资质配置
+    // ========================================
+    
+    // 小刀资质配置
+    {
+        WeaponQualityConfig config;
+        config.weaponId = "knife";
+        config.hasQualitySystem = true;
+        config.canEnhance = true;
+        config.maxEnhanceLevel = 3;
+        config.enhanceAttackBonus = 3;
+        config.maxLevelLifeSteal = 0.0f;  // 小刀满级无吸血
+        config.fixedIgnoreDefense = 0;
+        
+        // 掉落资质概率：白70%，绿20%，蓝10%
+        config.dropQualityProb = {0.70f, 0.20f, 0.10f, 0.0f, 0.0f, 0.0f, 0.0f};
+        // 锻造资质概率：白60%，绿30%，蓝10%
+        config.forgeQualityProb = {0.60f, 0.30f, 0.10f, 0.0f, 0.0f, 0.0f, 0.0f};
+        
+        // 各资质攻击力范围
+        config.attackRanges[0] = WeaponAttackRange(1, 3);   // 白
+        config.attackRanges[1] = WeaponAttackRange(2, 5);   // 绿
+        config.attackRanges[2] = WeaponAttackRange(3, 7);   // 蓝
+        config.attackRanges[3] = WeaponAttackRange(5, 10);  // 橙
+        config.attackRanges[4] = WeaponAttackRange(7, 12);  // 紫
+        config.attackRanges[5] = WeaponAttackRange(10, 15); // 黄
+        config.attackRanges[6] = WeaponAttackRange(18, 22); // 红
+        
+        registerWeaponQualityConfig(config);
+    }
+    
+    // 长矛资质配置
+    {
+        WeaponQualityConfig config;
+        config.weaponId = "spear";
+        config.hasQualitySystem = true;
+        config.canEnhance = true;
+        config.maxEnhanceLevel = 8;
+        config.enhanceAttackBonus = 3;
+        config.maxLevelLifeSteal = 0.02f;  // 满级吸血+2%
+        config.fixedIgnoreDefense = 2;     // 无视防御值2
+        
+        // 掉落资质概率：白70%，绿20%，蓝10%
+        config.dropQualityProb = {0.70f, 0.20f, 0.10f, 0.0f, 0.0f, 0.0f, 0.0f};
+        // 锻造资质概率：白50%，绿35%，蓝15%
+        config.forgeQualityProb = {0.50f, 0.35f, 0.15f, 0.0f, 0.0f, 0.0f, 0.0f};
+        
+        // 各资质攻击力范围
+        config.attackRanges[0] = WeaponAttackRange(3, 5);   // 白
+        config.attackRanges[1] = WeaponAttackRange(4, 8);   // 绿
+        config.attackRanges[2] = WeaponAttackRange(6, 10);  // 蓝
+        config.attackRanges[3] = WeaponAttackRange(8, 13);  // 橙
+        config.attackRanges[4] = WeaponAttackRange(13, 18); // 紫
+        config.attackRanges[5] = WeaponAttackRange(18, 20); // 黄
+        config.attackRanges[6] = WeaponAttackRange(22, 25); // 红
+        
+        registerWeaponQualityConfig(config);
+    }
+    
+    // 斧头资质配置（无资质系统，不可强化）
+    {
+        WeaponQualityConfig config;
+        config.weaponId = "axe";
+        config.hasQualitySystem = false;
+        config.canEnhance = false;
+        config.maxEnhanceLevel = 0;
+        config.enhanceAttackBonus = 0;
+        config.maxLevelLifeSteal = 0.0f;
+        config.fixedIgnoreDefense = 0;  // 斧头是完全无视树木类防御，在其他地方处理
+        
+        registerWeaponQualityConfig(config);
+    }
+    
+    std::cout << "[EquipmentManager] Registered " << qualityConfigs.size() << " weapon quality configs" << std::endl;
 }
 
 const EquipmentData* EquipmentManager::getEquipmentData(const std::string& equipId) const {
@@ -324,7 +400,286 @@ std::string EquipmentManager::getWeaponTypeName(WeaponType type) {
         case WeaponType::TwoHandMace: return "双手锤";
         case WeaponType::Spear:       return "枪";
         case WeaponType::Polearm:     return "矛";
+        case WeaponType::Knife:       return "小刀";
         default:                      return "无";
+    }
+}
+
+// ============================================================================
+// 武器资质系统实现
+// ============================================================================
+
+void EquipmentManager::registerWeaponQualityConfig(const WeaponQualityConfig& config) {
+    qualityConfigs[config.weaponId] = config;
+    std::cout << "[EquipmentManager] Registered quality config for: " << config.weaponId << std::endl;
+}
+
+const WeaponQualityConfig* EquipmentManager::getWeaponQualityConfig(const std::string& weaponId) const {
+    auto it = qualityConfigs.find(weaponId);
+    if (it != qualityConfigs.end()) {
+        return &it->second;
+    }
+    return nullptr;
+}
+
+WeaponQuality EquipmentManager::randomQuality(const std::array<float, 7>& probs) {
+    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+    float roll = dist(rng);
+    
+    float cumulative = 0.0f;
+    for (int i = 0; i < 7; i++) {
+        cumulative += probs[i];
+        if (roll <= cumulative) {
+            return static_cast<WeaponQuality>(i);
+        }
+    }
+    return WeaponQuality::White;
+}
+
+int EquipmentManager::randomAttack(const WeaponAttackRange& range) {
+    if (range.minAttack >= range.maxAttack) {
+        return range.minAttack;
+    }
+    std::uniform_int_distribution<int> dist(range.minAttack, range.maxAttack);
+    return dist(rng);
+}
+
+std::string EquipmentManager::generateUniqueId() {
+    static int counter = 0;
+    std::stringstream ss;
+    ss << "weapon_" << std::time(nullptr) << "_" << (counter++);
+    return ss.str();
+}
+
+WeaponInstance EquipmentManager::generateWeaponFromDrop(const std::string& weaponId) {
+    WeaponInstance weapon;
+    weapon.baseWeaponId = weaponId;
+    weapon.uniqueId = generateUniqueId();
+    
+    const WeaponQualityConfig* config = getWeaponQualityConfig(weaponId);
+    if (!config || !config->hasQualitySystem) {
+        // 无资质系统，使用基础属性
+        weapon.quality = WeaponQuality::White;
+        weapon.baseAttack = 0;
+        weapon.enhanceLevel = 0;
+        
+        const EquipmentData* equipData = getEquipmentData(weaponId);
+        if (equipData) {
+            weapon.baseAttack = equipData->stats.attack;
+        }
+        weapon.ignoreDefenseValue = config ? config->fixedIgnoreDefense : 0;
+    } else {
+        // 使用掉落概率生成资质
+        weapon.quality = randomQuality(config->dropQualityProb);
+        int qualityIndex = static_cast<int>(weapon.quality);
+        weapon.baseAttack = randomAttack(config->attackRanges[qualityIndex]);
+        weapon.enhanceLevel = 0;
+        weapon.ignoreDefenseValue = config->fixedIgnoreDefense;
+    }
+    
+    updateWeaponStats(weapon);
+    
+    std::cout << "[EquipmentManager] Generated weapon from drop: " << weaponId 
+              << " Quality: " << WeaponInstance::getQualityName(weapon.quality)
+              << " Attack: " << weapon.totalAttack << std::endl;
+    
+    return weapon;
+}
+
+WeaponInstance EquipmentManager::forgeWeapon(const std::string& weaponId, int weaponSoulCount) {
+    WeaponInstance weapon;
+    weapon.baseWeaponId = weaponId;
+    weapon.uniqueId = generateUniqueId();
+    
+    const WeaponQualityConfig* config = getWeaponQualityConfig(weaponId);
+    if (!config || !config->hasQualitySystem) {
+        // 无资质系统
+        weapon.quality = WeaponQuality::White;
+        weapon.baseAttack = 0;
+        weapon.enhanceLevel = 0;
+        
+        const EquipmentData* equipData = getEquipmentData(weaponId);
+        if (equipData) {
+            weapon.baseAttack = equipData->stats.attack;
+        }
+        weapon.ignoreDefenseValue = config ? config->fixedIgnoreDefense : 0;
+    } else {
+        // 计算锻造概率（加入武器魂影响）
+        std::array<float, 7> probs = calculateForgeProb(weaponId, weaponSoulCount);
+        weapon.quality = randomQuality(probs);
+        int qualityIndex = static_cast<int>(weapon.quality);
+        weapon.baseAttack = randomAttack(config->attackRanges[qualityIndex]);
+        weapon.enhanceLevel = 0;
+        weapon.ignoreDefenseValue = config->fixedIgnoreDefense;
+    }
+    
+    updateWeaponStats(weapon);
+    
+    std::cout << "[EquipmentManager] Forged weapon: " << weaponId 
+              << " with " << weaponSoulCount << " souls"
+              << " Quality: " << WeaponInstance::getQualityName(weapon.quality)
+              << " Attack: " << weapon.totalAttack << std::endl;
+    
+    return weapon;
+}
+
+std::array<float, 7> EquipmentManager::calculateForgeProb(const std::string& weaponId, int weaponSoulCount) const {
+    const WeaponQualityConfig* config = getWeaponQualityConfig(weaponId);
+    if (!config) {
+        return {1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    }
+    
+    // 限制武器魂数量为0-30
+    weaponSoulCount = std::max(0, std::min(30, weaponSoulCount));
+    
+    if (weaponSoulCount == 0) {
+        return config->forgeQualityProb;
+    }
+    
+    // 锻造概率公式参数
+    const float decayLow = 0.08f;   // 低资质衰减系数
+    const float decayMid = 0.03f;   // 中资质调整系数
+    const float boostHigh = 1.5f;   // 高资质增益系数
+    
+    std::array<float, 7> result;
+    float total = 0.0f;
+    
+    for (int i = 0; i < 7; i++) {
+        float base = config->forgeQualityProb[i];
+        
+        if (i < 3) {
+            // 低资质（白、绿、蓝）衰减
+            result[i] = base * std::max(0.0f, 1.0f - decayLow * weaponSoulCount);
+        } else if (i < 5) {
+            // 中资质（橙、紫）增益
+            result[i] = base + (weaponSoulCount * decayMid * 0.1f);
+        } else {
+            // 高资质（黄、红）增益
+            result[i] = base + (weaponSoulCount * boostHigh * 0.02f);
+        }
+        
+        total += result[i];
+    }
+    
+    // 归一化
+    if (total > 0) {
+        for (int i = 0; i < 7; i++) {
+            result[i] /= total;
+        }
+    }
+    
+    return result;
+}
+
+// ============================================================================
+// 武器强化系统实现
+// ============================================================================
+
+int EquipmentManager::calculateEnhanceCost(const std::string& weaponId, int currentLevel) const {
+    // 公式：消耗 = 基础值 + (当前等级 × 当前等级 × 系数)
+    const int baseValue = 10;
+    const int coefficient = 2;
+    
+    return baseValue + (currentLevel * currentLevel * coefficient);
+}
+
+EnhanceResult EquipmentManager::enhanceWeapon(WeaponInstance& weapon, int& enhanceStoneCount) {
+    const WeaponQualityConfig* config = getWeaponQualityConfig(weapon.baseWeaponId);
+    
+    if (!config || !config->canEnhance) {
+        return EnhanceResult::NotEnhanceable;
+    }
+    
+    if (weapon.enhanceLevel >= config->maxEnhanceLevel) {
+        return EnhanceResult::MaxLevel;
+    }
+    
+    int cost = calculateEnhanceCost(weapon.baseWeaponId, weapon.enhanceLevel);
+    
+    if (enhanceStoneCount < cost) {
+        return EnhanceResult::NotEnough;
+    }
+    
+    // 扣除强化石
+    enhanceStoneCount -= cost;
+    
+    // 提升强化等级
+    weapon.enhanceLevel++;
+    
+    // 更新武器属性
+    updateWeaponStats(weapon);
+    
+    std::cout << "[EquipmentManager] Enhanced weapon: " << weapon.baseWeaponId
+              << " to level " << weapon.enhanceLevel
+              << " Cost: " << cost << " stones"
+              << " New Attack: " << weapon.totalAttack << std::endl;
+    
+    return EnhanceResult::Success;
+}
+
+void EquipmentManager::updateWeaponStats(WeaponInstance& weapon) {
+    const WeaponQualityConfig* config = getWeaponQualityConfig(weapon.baseWeaponId);
+    
+    // 计算总攻击力
+    weapon.totalAttack = weapon.baseAttack;
+    
+    if (config && config->canEnhance) {
+        weapon.totalAttack += weapon.enhanceLevel * config->enhanceAttackBonus;
+        
+        // 满级额外属性
+        if (weapon.enhanceLevel >= config->maxEnhanceLevel) {
+            weapon.lifeSteal = config->maxLevelLifeSteal;
+        } else {
+            weapon.lifeSteal = 0.0f;
+        }
+    }
+    
+    if (config) {
+        weapon.ignoreDefenseValue = config->fixedIgnoreDefense;
+    }
+}
+
+// ============================================================================
+// WeaponInstance 实现
+// ============================================================================
+
+std::string WeaponInstance::getDisplayName() const {
+    const EquipmentData* data = EquipmentManager::getInstance().getEquipmentData(baseWeaponId);
+    std::string baseName = data ? data->name : baseWeaponId;
+    
+    std::stringstream ss;
+    ss << "[" << getQualityName(quality) << "] " << baseName;
+    
+    if (enhanceLevel > 0) {
+        ss << " +" << enhanceLevel;
+    }
+    
+    return ss.str();
+}
+
+sf::Color WeaponInstance::getQualityColor(WeaponQuality q) {
+    switch (q) {
+        case WeaponQuality::White:  return sf::Color(255, 255, 255);     // 白
+        case WeaponQuality::Green:  return sf::Color(0, 255, 0);         // 绿
+        case WeaponQuality::Blue:   return sf::Color(0, 0, 255);         // 蓝
+        case WeaponQuality::Orange: return sf::Color(255, 165, 0);       // 橙
+        case WeaponQuality::Purple: return sf::Color(128, 0, 128);       // 紫
+        case WeaponQuality::Yellow: return sf::Color(255, 215, 0);       // 黄
+        case WeaponQuality::Red:    return sf::Color(255, 0, 0);         // 红
+        default:                    return sf::Color::White;
+    }
+}
+
+std::string WeaponInstance::getQualityName(WeaponQuality q) {
+    switch (q) {
+        case WeaponQuality::White:  return "白";
+        case WeaponQuality::Green:  return "绿";
+        case WeaponQuality::Blue:   return "蓝";
+        case WeaponQuality::Orange: return "橙";
+        case WeaponQuality::Purple: return "紫";
+        case WeaponQuality::Yellow: return "黄";
+        case WeaponQuality::Red:    return "红";
+        default:                    return "未知";
     }
 }
 
@@ -332,7 +687,9 @@ std::string EquipmentManager::getWeaponTypeName(WeaponType type) {
 // PlayerEquipment 实现
 // ============================================================================
 
-PlayerEquipment::PlayerEquipment() {
+PlayerEquipment::PlayerEquipment()
+    : hasWeaponInstance(false)
+{
     for (auto& item : equippedItems) {
         item.clear();
     }
@@ -350,6 +707,12 @@ std::string PlayerEquipment::equip(const std::string& equipId) {
     
     equippedItems[slotIndex] = equipId;
     
+    // 如果装备武器，清除武器实例
+    if (data->slot == EquipmentSlot::Weapon) {
+        hasWeaponInstance = false;
+        equippedWeapon = WeaponInstance();
+    }
+    
     if (onEquip) {
         onEquip(data->slot, equipId);
     }
@@ -366,6 +729,12 @@ ItemStack PlayerEquipment::equip(const EquipmentData& equipData) {
     
     equippedItems[slotIndex] = equipData.id;
     
+    // 如果装备武器，清除武器实例
+    if (equipData.slot == EquipmentSlot::Weapon) {
+        hasWeaponInstance = false;
+        equippedWeapon = WeaponInstance();
+    }
+    
     if (onEquip) {
         onEquip(equipData.slot, equipData.id);
     }
@@ -380,12 +749,41 @@ ItemStack PlayerEquipment::equip(const EquipmentData& equipData) {
     return ItemStack();
 }
 
+WeaponInstance PlayerEquipment::equipWeapon(const WeaponInstance& weapon) {
+    WeaponInstance oldWeapon;
+    
+    // 保存旧武器
+    if (hasWeaponInstance) {
+        oldWeapon = equippedWeapon;
+    }
+    
+    // 装备新武器
+    equippedWeapon = weapon;
+    hasWeaponInstance = true;
+    equippedItems[static_cast<size_t>(EquipmentSlot::Weapon)] = weapon.baseWeaponId;
+    
+    if (onEquip) {
+        onEquip(EquipmentSlot::Weapon, weapon.baseWeaponId);
+    }
+    
+    std::cout << "[PlayerEquipment] Equipped weapon instance: " << weapon.getDisplayName()
+              << " Attack: " << weapon.totalAttack << std::endl;
+    
+    return oldWeapon;
+}
+
 std::string PlayerEquipment::unequip(EquipmentSlot slot) {
     size_t slotIndex = static_cast<size_t>(slot);
     std::string removed = equippedItems[slotIndex];
     
     if (!removed.empty()) {
         equippedItems[slotIndex].clear();
+        
+        // 如果卸下武器，也清除武器实例
+        if (slot == EquipmentSlot::Weapon) {
+            hasWeaponInstance = false;
+            equippedWeapon = WeaponInstance();
+        }
         
         if (onUnequip) {
             onUnequip(slot, removed);
@@ -394,6 +792,25 @@ std::string PlayerEquipment::unequip(EquipmentSlot slot) {
         const EquipmentData* data = EquipmentManager::getInstance().getEquipmentData(removed);
         std::cout << "[PlayerEquipment] Unequipped: " 
                   << (data ? data->name : removed) << std::endl;
+    }
+    
+    return removed;
+}
+
+WeaponInstance PlayerEquipment::unequipWeapon() {
+    WeaponInstance removed;
+    
+    if (hasWeaponInstance) {
+        removed = equippedWeapon;
+        hasWeaponInstance = false;
+        equippedWeapon = WeaponInstance();
+        equippedItems[static_cast<size_t>(EquipmentSlot::Weapon)].clear();
+        
+        if (onUnequip) {
+            onUnequip(EquipmentSlot::Weapon, removed.baseWeaponId);
+        }
+        
+        std::cout << "[PlayerEquipment] Unequipped weapon instance: " << removed.getDisplayName() << std::endl;
     }
     
     return removed;
@@ -420,14 +837,55 @@ bool PlayerEquipment::hasEquipment(EquipmentSlot slot) const {
     return !getEquippedItem(slot).empty();
 }
 
+const WeaponInstance* PlayerEquipment::getEquippedWeapon() const {
+    if (hasWeaponInstance) {
+        return &equippedWeapon;
+    }
+    return nullptr;
+}
+
+WeaponInstance* PlayerEquipment::getEquippedWeaponMutable() {
+    if (hasWeaponInstance) {
+        return &equippedWeapon;
+    }
+    return nullptr;
+}
+
 EquipmentStats PlayerEquipment::getTotalStats() const {
     EquipmentStats total;
     
     for (size_t i = 0; i < equippedItems.size(); i++) {
         if (!equippedItems[i].empty()) {
-            const EquipmentData* data = EquipmentManager::getInstance().getEquipmentData(equippedItems[i]);
-            if (data) {
-                total = total + data->stats;
+            // 武器槽位特殊处理
+            if (i == static_cast<size_t>(EquipmentSlot::Weapon) && hasWeaponInstance) {
+                // 使用武器实例的属性
+                total.attack += equippedWeapon.totalAttack;
+                total.lifeSteal += equippedWeapon.lifeSteal;
+                total.ignoreDefenseValue += equippedWeapon.ignoreDefenseValue;
+                
+                // 获取基础武器的其他属性
+                const EquipmentData* data = EquipmentManager::getInstance().getEquipmentData(equippedWeapon.baseWeaponId);
+                if (data) {
+                    // 添加除攻击力外的其他属性
+                    total.defense += data->stats.defense;
+                    total.strength += data->stats.strength;
+                    total.dexterity += data->stats.dexterity;
+                    total.intelligence += data->stats.intelligence;
+                    total.luck += data->stats.luck;
+                    total.hp += data->stats.hp;
+                    total.mp += data->stats.mp;
+                    total.speed += data->stats.speed;
+                    total.jump += data->stats.jump;
+                    total.ignoreDefense = total.ignoreDefense || data->stats.ignoreDefense;
+                    total.ignoreDefenseRate = std::max(total.ignoreDefenseRate, data->stats.ignoreDefenseRate);
+                    total.critRate += data->stats.critRate;
+                    total.critDamage += data->stats.critDamage;
+                }
+            } else {
+                const EquipmentData* data = EquipmentManager::getInstance().getEquipmentData(equippedItems[i]);
+                if (data) {
+                    total = total + data->stats;
+                }
             }
         }
     }
@@ -441,6 +899,10 @@ bool PlayerEquipment::hasIgnoreDefense() const {
 
 float PlayerEquipment::getIgnoreDefenseRate() const {
     return getTotalStats().ignoreDefenseRate;
+}
+
+int PlayerEquipment::getIgnoreDefenseValue() const {
+    return getTotalStats().ignoreDefenseValue;
 }
 
 WeaponType PlayerEquipment::getCurrentWeaponType() const {

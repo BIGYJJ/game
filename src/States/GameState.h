@@ -44,6 +44,13 @@ public:
     // Render
     void render(sf::RenderWindow& window) override;
 
+
+    //  专门处理宠物攻击造成的伤害（独立于玩家）
+    void handlePetAttack();
+    
+    //  处理指挥宠物的输入
+    void handlePetCommand(const sf::Event& event);
+
 private:
     // Load specified map
     void loadMap(MapType mapType);

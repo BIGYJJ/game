@@ -281,7 +281,14 @@ public:
     static void getLuckWashProbabilities(float luck,
         float& mediocre, float& good, float& excellent,
         float& outstanding, float& rare);
-
+    
+    // 激活战斗模式（持续 duration 秒）
+    void enterCombatMode(float duration) {
+        combatTimer = duration;
+    }
+    
+    //  是否处于战斗模式
+    bool isInCombat() const { return combatTimer > 0; }
 protected:
     // 更新精灵位置
     virtual void updateSprite();
@@ -364,6 +371,9 @@ protected:
     static constexpr float DEFAULT_FOLLOW_SPEED = 120.0f;
     static constexpr float ATTACK_COOLDOWN_TIME = 1.5f;
     static constexpr float PET_ATTACK_RANGE = 60.0f;  // 宠物攻击范围
+
+    // [新增] 战斗状态计时器
+    float combatTimer = 0.0f;
 };
 
 // ============================================================================

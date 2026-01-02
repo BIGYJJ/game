@@ -219,6 +219,16 @@ void PetRabbit::rollSkills() {
 // 更新
 // ============================================================================
 void PetRabbit::update(float dt, const sf::Vector2f& ownerPos, bool ownerAttacking) {
+    //  更新战斗计时器
+    if (combatTimer > 0) {
+        combatTimer -= dt;
+    }
+
+    //  如果主人攻击了，强制进入3秒战斗模式
+    if (ownerAttacking) {
+        enterCombatMode(3.0f);
+    }
+
     // 更新跟随AI
     updateFollowAI(dt, ownerPos);
     

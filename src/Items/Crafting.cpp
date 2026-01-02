@@ -30,72 +30,74 @@ void CraftingManager::initialize() {
     std::cout << "[CraftingManager] Initializing crafting recipes..." << std::endl;
     
     // ========================================
-    // 工具配方
+    // 武器配方（不允许批量合成）
     // ========================================
     
-    // 木斧 - 1石头 + 2树枝 = 1木斧（无视防御）
+    // 斧头 - 石头(3) + 树枝(1)
     {
         CraftingRecipe recipe;
-        recipe.id = "craft_wooden_axe";
-        recipe.name = "木斧";
-        recipe.description = "合成一把木斧，可以无视树木的防御值";
-        recipe.ingredients.push_back(RecipeIngredient("stone", 1));
-        recipe.ingredients.push_back(RecipeIngredient("stick", 2));
-        recipe.resultItemId = "wooden_axe";
-        recipe.resultCount = 1;
-        recipe.isEquipment = true;
-        registerRecipe(recipe);
-    }
-    
-    // 铁斧 - 3石头 + 2树枝 + 2木材 = 1铁斧
-    {
-        CraftingRecipe recipe;
-        recipe.id = "craft_iron_axe";
-        recipe.name = "铁斧";
-        recipe.description = "合成一把更强力的铁斧";
+        recipe.id = "craft_axe";
+        recipe.name = "斧头";
+        recipe.description = "合成一把斧头，可以无视树木类的防御值";
         recipe.ingredients.push_back(RecipeIngredient("stone", 3));
-        recipe.ingredients.push_back(RecipeIngredient("stick", 2));
-        recipe.ingredients.push_back(RecipeIngredient("wood", 2));
-        recipe.resultItemId = "iron_axe";
-        recipe.resultCount = 1;
-        recipe.isEquipment = true;
-        registerRecipe(recipe);
-    }
-    
-    // ========================================
-    // 武器配方
-    // ========================================
-    
-    // 木剑 - 2木材 + 1树枝 = 1木剑
-    {
-        CraftingRecipe recipe;
-        recipe.id = "craft_wooden_sword";
-        recipe.name = "木剑";
-        recipe.description = "合成一把简单的木剑";
-        recipe.ingredients.push_back(RecipeIngredient("wood", 2));
         recipe.ingredients.push_back(RecipeIngredient("stick", 1));
-        recipe.resultItemId = "wooden_sword";
+        recipe.resultItemId = "axe";
         recipe.resultCount = 1;
         recipe.isEquipment = true;
         registerRecipe(recipe);
     }
     
-    // 铁剑 - 3石头 + 2木材 = 1铁剑
+    // 小刀 - 钢铁(2)（武器锻造，可添加武器魂）
     {
         CraftingRecipe recipe;
-        recipe.id = "craft_iron_sword";
-        recipe.name = "铁剑";
-        recipe.description = "合成一把锋利的铁剑";
-        recipe.ingredients.push_back(RecipeIngredient("stone", 3));
-        recipe.ingredients.push_back(RecipeIngredient("wood", 2));
-        recipe.resultItemId = "iron_sword";
+        recipe.id = "craft_knife";
+        recipe.name = "小刀";
+        recipe.description = "锻造一把锋利的小刀（可添加武器魂提升资质）";
+        recipe.ingredients.push_back(RecipeIngredient("steel", 2));
+        recipe.resultItemId = "knife";
         recipe.resultCount = 1;
         recipe.isEquipment = true;
+        recipe.isWeaponForge = true;
+        registerRecipe(recipe);
+    }
+    
+    // 长矛 - 生铁(1) + 钢铁(2)（武器锻造，可添加武器魂）
+    {
+        CraftingRecipe recipe;
+        recipe.id = "craft_spear";
+        recipe.name = "长矛";
+        recipe.description = "锻造一把长矛（可添加武器魂提升资质）";
+        recipe.ingredients.push_back(RecipeIngredient("pig_iron", 1));
+        recipe.ingredients.push_back(RecipeIngredient("steel", 2));
+        recipe.resultItemId = "spear";
+        recipe.resultCount = 1;
+        recipe.isEquipment = true;
+        recipe.isWeaponForge = true;
         registerRecipe(recipe);
     }
     
     // ========================================
-    // 防具配方
+    // 材料配方（允许批量合成）
+    // ========================================
+    
+    // 钢铁 - 生铁(1) + 煤炭(2)，允许批量合成(最多100)
+    {
+        CraftingRecipe recipe;
+        recipe.id = "craft_steel";
+        recipe.name = "钢铁";
+        recipe.description = "将生铁和煤炭冶炼成钢铁";
+        recipe.ingredients.push_back(RecipeIngredient("pig_iron", 1));
+        recipe.ingredients.push_back(RecipeIngredient("coal", 2));
+        recipe.resultItemId = "steel";
+        recipe.resultCount = 1;
+        recipe.isEquipment = false;
+        recipe.allowBatchCraft = true;
+        recipe.maxBatchCount = 100;
+        registerRecipe(recipe);
+    }
+    
+    // ========================================
+    // 防具配方（保留原有）
     // ========================================
     
     // 木盾 - 3木材 = 1木盾

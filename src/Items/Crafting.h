@@ -42,10 +42,16 @@ struct CraftingRecipe {
     std::string resultItemId;                   // 产出物品ID
     int resultCount;                            // 产出数量
     bool isEquipment;                           // 是否为装备配方
+    bool allowBatchCraft;                       // 是否允许批量合成
+    int maxBatchCount;                          // 最大批量数量
+    bool isWeaponForge;                         // 是否为武器锻造配方
     
     CraftingRecipe()
         : resultCount(1)
-        , isEquipment(false) {}
+        , isEquipment(false)
+        , allowBatchCraft(false)
+        , maxBatchCount(1)
+        , isWeaponForge(false) {}
 };
 
 // ============================================================================
