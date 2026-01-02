@@ -138,6 +138,7 @@ public:
     sf::Vector2f getSize() const { return size; }
     sf::FloatRect getBounds() const;
     sf::FloatRect getCollisionBox() const;  // 碰撞盒（通常比视觉范围小）
+    sf::FloatRect getHitBox() const;        // 攻击判定盒（树冠+树干，用于被砍伐）
     
     // ========================================
     // 掉落物品
@@ -191,6 +192,15 @@ private:
     // === 位置 ===
     sf::Vector2f position;
     sf::Vector2f size;          // 树木尺寸
+    
+    // === 自定义碰撞盒（从 tsx 文件读取）===
+    bool hasCustomCollisionBox;     // 是否有自定义碰撞盒
+    float customCollisionX;         // 碰撞盒X偏移（相对于tile左上角）
+    float customCollisionY;         // 碰撞盒Y偏移
+    float customCollisionWidth;     // 碰撞盒宽度
+    float customCollisionHeight;    // 碰撞盒高度
+    float originalTileWidth;        // 原始tile宽度（用于缩放计算）
+    float originalTileHeight;       // 原始tile高度
     
     // === 生长 ===
     TreeGrowthStage growthStage;

@@ -94,6 +94,11 @@ GameState::GameState(Game* game, MapType mapType)
     std::cout << "  F1 - Farm Map | F2 - Forest Map | F3 - Reload" << std::endl;
     std::cout << "  ESC - Exit" << std::endl;
     std::cout << "========================================\n" << std::endl;
+    
+    // 【调试】打印 TileMap 中剩余的对象（应该没有树木、石头、植物）
+    if (tileMap) {
+        tileMap->debugPrintRemainingObjects();
+    }
 }
 
 void GameState::initItemSystem() {
@@ -562,6 +567,11 @@ void GameState::update(float dt) {
             player->setPosition(oldPos);
         }
         
+        // 【新增】Collision detection with stone builds (石头碰撞检测)
+        if (stoneBuildManager && stoneBuildManager->isCollidingWithAnyStone(player->getCollisionBox())) {
+            player->setPosition(oldPos);
+        }
+        
         // ====================================================
         // 推挤碰撞处理：谁移动谁推开对方
         // ====================================================
@@ -1017,11 +1027,12 @@ void GameState::initTrees() {
         if (tree) {
             tree->setSize(width, height);
             
-            // 注意：不再自动设置 canTransform
-            // 如果需要树木变换功能，取消下面的注释
-            // if (tree->getTreeType() == "tree1") {
-            //     tree->setCanTransform(true);
-            // }
+            // 【修复】强制禁用变换功能，防止树在被砍时"复活"
+            tree->setCanTransform(false);
+            
+            std::cout << "[Trees] Tree created: " << tree->getName() 
+                      << " type=" << tree->getTreeType()
+                      << " canTransform=" << tree->canBeTransformed() << std::endl;
             
             // ========================================
             // 设置销毁回调 - 生成掉落物品和奖励
@@ -1507,9 +1518,8 @@ void GameState::handlePlayerAttack() {
                           << damage << " damage" << std::endl;
             }
         }
-        
-        
     }
+    
     
     wasAttacking = isCurrentlyAttacking;
 }
@@ -1616,6 +1626,9 @@ bool GameState::onPlantSeed(const ItemStack& seed) {
     
     if (newTree) {
         newTree->setSize(64, 64);
+        
+        // 【修复】禁用变换功能
+        newTree->setCanTransform(false);
         
         // 设置销毁回调
         newTree->setOnDestroyed([this](Tree& t) {
@@ -2024,8 +2037,19 @@ void GameState::handlePetAttack() {
                 // 处理掉落
                 auto drops = rabbit->generateDrops();
                 if (!drops.empty() && droppedItemManager) {
-                    droppedItemManager->spawnItems(drops, rabbit->getPosition().x, rabbit->getPosition().y);
-                    // ... (原有日志代码) ...
+                    sf::Vector2f rabbitPos = rabbit->getPosition();
+                    droppedItemManager->spawnItems(drops, rabbitPos.x, rabbitPos.y);
+                    
+                    // 添加到事件日志
+                    if (eventLogPanel) {
+                        eventLogPanel->addMessage(pet->getName() + " 击杀了 " + rabbit->getName(), EventType::Combat);
+                        for (const auto& drop : drops) {
+                            const ItemData* data = ItemDatabase::getInstance().getItemData(drop.first);
+                            if (data) {
+                                eventLogPanel->addItemObtained(data->name, drop.second, drop.first);
+                            }
+                        }
+                    }
                 }
                 
                 // 处理经验
@@ -2033,12 +2057,22 @@ void GameState::handlePetAttack() {
                 int gold = rabbit->getGoldReward();
                 
                 if (player) {
+                    int oldLevel = player->getStats().getLevel();
                     player->getStats().addExp(exp);
+                    int newLevel = player->getStats().getLevel();
                     player->getStats().addGold(gold);
                     pet->addExp(exp / 2); // 宠物分得经验
+                    
+                    // 添加经验和金币日志
+                    if (eventLogPanel) {
+                        if (exp > 0) eventLogPanel->addExpObtained(exp, "宠物击杀");
+                        if (gold > 0) eventLogPanel->addGoldObtained(gold);
+                        if (newLevel > oldLevel) eventLogPanel->addLevelUp(newLevel);
+                    }
                 }
                 
-                std::cout << "[Pet] " << pet->getName() << " 独立击杀了兔子!" << std::endl;
+                std::cout << "[Pet] " << pet->getName() << " 独立击杀了兔子! +"
+                          << exp << " EXP, +" << gold << " Gold" << std::endl;
             }
         }
         

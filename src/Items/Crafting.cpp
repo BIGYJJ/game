@@ -1,19 +1,28 @@
 #include "Crafting.h"
-#include "Equipment.h"
 #include <iostream>
 #include <sstream>
+#include <iomanip>
 
 // ============================================================================
-// 颜色常量
+// 样式配色常量 (RPG Dark Theme)
 // ============================================================================
-
-const sf::Color CraftingPanel::BG_COLOR(30, 30, 40, 240);
-const sf::Color CraftingPanel::SLOT_COLOR(50, 50, 60, 200);
-const sf::Color CraftingPanel::SLOT_HOVER_COLOR(70, 70, 90, 220);
-const sf::Color CraftingPanel::SLOT_SELECTED_COLOR(80, 100, 80, 240);
-const sf::Color CraftingPanel::CRAFTABLE_COLOR(50, 120, 50, 200);
-const sf::Color CraftingPanel::NOT_CRAFTABLE_COLOR(120, 50, 50, 200);
-const sf::Color CraftingPanel::BORDER_COLOR(139, 90, 43);
+namespace Style {
+    const sf::Color PanelBG(34, 34, 40, 250);
+    const sf::Color TitleBG(50, 40, 30, 255);
+    const sf::Color ListBG(25, 25, 30, 200);
+    const sf::Color ItemNormal(45, 45, 50, 255);
+    const sf::Color ItemHover(60, 60, 70, 255);
+    const sf::Color ItemSelected(80, 70, 50, 255);
+    const sf::Color Border(160, 130, 80);
+    const sf::Color TextNormal(200, 200, 200);
+    const sf::Color TextHighlight(255, 215, 0);
+    const sf::Color TextGreen(100, 255, 100);
+    const sf::Color TextRed(255, 100, 100);
+    const sf::Color SliderBG(20, 20, 20);
+    const sf::Color SliderFill(180, 140, 60);
+    const sf::Color ButtonNormal(60, 100, 60);
+    const sf::Color ButtonDisabled(60, 60, 60);
+}
 
 // ============================================================================
 // CraftingManager 实现
@@ -24,247 +33,138 @@ CraftingManager& CraftingManager::getInstance() {
     return instance;
 }
 
+void CraftingManager::registerRecipe(const CraftingRecipe& recipe) {
+    recipes.push_back(recipe);
+}
+
 void CraftingManager::initialize() {
     if (initialized) return;
     
-    std::cout << "[CraftingManager] Initializing crafting recipes..." << std::endl;
-    
-    // ========================================
-    // 武器配方（不允许批量合成）
-    // ========================================
-    
-    // 斧头 - 石头(3) + 树枝(1)
+    // --- 武器 (锻造) ---
     {
-        CraftingRecipe recipe;
-        recipe.id = "craft_axe";
-        recipe.name = "斧头";
-        recipe.description = "合成一把斧头，可以无视树木类的防御值";
-        recipe.ingredients.push_back(RecipeIngredient("stone", 3));
-        recipe.ingredients.push_back(RecipeIngredient("stick", 1));
-        recipe.resultItemId = "axe";
-        recipe.resultCount = 1;
-        recipe.isEquipment = true;
-        registerRecipe(recipe);
+        CraftingRecipe r;
+        r.id = "craft_axe"; r.name = "斧头";
+        r.description = "基础工具，用于伐木。";
+        r.ingredients = { {"stone", 3}, {"stick", 1} };
+        r.resultItemId = "axe";
+        r.isEquipment = true; 
+        registerRecipe(r); 
     }
-    
-    // 小刀 - 钢铁(2)（武器锻造，可添加武器魂）
     {
-        CraftingRecipe recipe;
-        recipe.id = "craft_knife";
-        recipe.name = "小刀";
-        recipe.description = "锻造一把锋利的小刀（可添加武器魂提升资质）";
-        recipe.ingredients.push_back(RecipeIngredient("steel", 2));
-        recipe.resultItemId = "knife";
-        recipe.resultCount = 1;
-        recipe.isEquipment = true;
-        recipe.isWeaponForge = true;
-        registerRecipe(recipe);
+        CraftingRecipe r;
+        r.id = "craft_knife"; r.name = "小刀";
+        r.description = "锋利的武器，可用于战斗。可通过锻造提升品质。";
+        r.ingredients = { {"steel", 2} };
+        r.resultItemId = "knife";
+        r.isEquipment = true;
+        r.isWeaponForge = true;
+        r.maxWeaponSouls = 30; // 允许加30个魂
+        registerRecipe(r);
     }
-    
-    // 长矛 - 生铁(1) + 钢铁(2)（武器锻造，可添加武器魂）
     {
-        CraftingRecipe recipe;
-        recipe.id = "craft_spear";
-        recipe.name = "长矛";
-        recipe.description = "锻造一把长矛（可添加武器魂提升资质）";
-        recipe.ingredients.push_back(RecipeIngredient("pig_iron", 1));
-        recipe.ingredients.push_back(RecipeIngredient("steel", 2));
-        recipe.resultItemId = "spear";
-        recipe.resultCount = 1;
-        recipe.isEquipment = true;
-        recipe.isWeaponForge = true;
-        registerRecipe(recipe);
+        CraftingRecipe r;
+        r.id = "craft_spear"; r.name = "长矛";
+        r.description = "长柄武器，攻击距离较远。可通过锻造提升品质。";
+        r.ingredients = { {"pig_iron", 1}, {"steel", 2} };
+        r.resultItemId = "spear";
+        r.isEquipment = true;
+        r.isWeaponForge = true;
+        r.maxWeaponSouls = 30;
+        registerRecipe(r);
     }
-    
-    // ========================================
-    // 材料配方（允许批量合成）
-    // ========================================
-    
-    // 钢铁 - 生铁(1) + 煤炭(2)，允许批量合成(最多100)
+
+    // --- 材料 (批量) ---
     {
-        CraftingRecipe recipe;
-        recipe.id = "craft_steel";
-        recipe.name = "钢铁";
-        recipe.description = "将生铁和煤炭冶炼成钢铁";
-        recipe.ingredients.push_back(RecipeIngredient("pig_iron", 1));
-        recipe.ingredients.push_back(RecipeIngredient("coal", 2));
-        recipe.resultItemId = "steel";
-        recipe.resultCount = 1;
-        recipe.isEquipment = false;
-        recipe.allowBatchCraft = true;
-        recipe.maxBatchCount = 100;
-        registerRecipe(recipe);
-    }
-    
-    // ========================================
-    // 防具配方（保留原有）
-    // ========================================
-    
-    // 木盾 - 3木材 = 1木盾
-    {
-        CraftingRecipe recipe;
-        recipe.id = "craft_wooden_shield";
-        recipe.name = "木盾";
-        recipe.description = "合成一面简单的木盾";
-        recipe.ingredients.push_back(RecipeIngredient("wood", 3));
-        recipe.resultItemId = "wooden_shield";
-        recipe.resultCount = 1;
-        recipe.isEquipment = true;
-        registerRecipe(recipe);
-    }
-    
-    // 皮帽 - 2木材 = 1皮帽
-    {
-        CraftingRecipe recipe;
-        recipe.id = "craft_leather_cap";
-        recipe.name = "皮帽";
-        recipe.description = "合成一顶简单的帽子";
-        recipe.ingredients.push_back(RecipeIngredient("wood", 2));
-        recipe.resultItemId = "leather_cap";
-        recipe.resultCount = 1;
-        recipe.isEquipment = true;
-        registerRecipe(recipe);
-    }
-    
-    // 皮甲 - 4木材 + 1石头 = 1皮甲
-    {
-        CraftingRecipe recipe;
-        recipe.id = "craft_leather_armor";
-        recipe.name = "皮甲";
-        recipe.description = "合成一件简单的护甲";
-        recipe.ingredients.push_back(RecipeIngredient("wood", 4));
-        recipe.ingredients.push_back(RecipeIngredient("stone", 1));
-        recipe.resultItemId = "leather_armor";
-        recipe.resultCount = 1;
-        recipe.isEquipment = true;
-        registerRecipe(recipe);
-    }
-    
-    // 皮裤 - 3木材 = 1皮裤
-    {
-        CraftingRecipe recipe;
-        recipe.id = "craft_leather_pants";
-        recipe.name = "皮裤";
-        recipe.description = "合成一条简单的裤子";
-        recipe.ingredients.push_back(RecipeIngredient("wood", 3));
-        recipe.resultItemId = "leather_pants";
-        recipe.resultCount = 1;
-        recipe.isEquipment = true;
-        registerRecipe(recipe);
-    }
-    
-    // 皮手套 - 2木材 = 1皮手套
-    {
-        CraftingRecipe recipe;
-        recipe.id = "craft_leather_gloves";
-        recipe.name = "皮手套";
-        recipe.description = "合成一双简单的手套";
-        recipe.ingredients.push_back(RecipeIngredient("wood", 2));
-        recipe.resultItemId = "leather_gloves";
-        recipe.resultCount = 1;
-        recipe.isEquipment = true;
-        registerRecipe(recipe);
-    }
-    
-    // 皮靴 - 2木材 + 1树枝 = 1皮靴
-    {
-        CraftingRecipe recipe;
-        recipe.id = "craft_leather_boots";
-        recipe.name = "皮靴";
-        recipe.description = "合成一双简单的靴子";
-        recipe.ingredients.push_back(RecipeIngredient("wood", 2));
-        recipe.ingredients.push_back(RecipeIngredient("stick", 1));
-        recipe.resultItemId = "leather_boots";
-        recipe.resultCount = 1;
-        recipe.isEquipment = true;
-        registerRecipe(recipe);
-    }
-    
-    // 简易披风 - 3木材 = 1简易披风
-    {
-        CraftingRecipe recipe;
-        recipe.id = "craft_simple_cape";
-        recipe.name = "简易披风";
-        recipe.description = "合成一件简单的披风";
-        recipe.ingredients.push_back(RecipeIngredient("wood", 3));
-        recipe.resultItemId = "simple_cape";
-        recipe.resultCount = 1;
-        recipe.isEquipment = true;
-        registerRecipe(recipe);
-    }
-    
-    // ========================================
-    // 消耗品配方
-    // ========================================
-    
-    // 生命药水 - 3苹果 + 2樱桃 = 1生命药水
-    {
-        CraftingRecipe recipe;
-        recipe.id = "craft_health_potion";
-        recipe.name = "生命药水";
-        recipe.description = "将水果酿成药水";
-        recipe.ingredients.push_back(RecipeIngredient("apple", 3));
-        recipe.ingredients.push_back(RecipeIngredient("cherry", 2));
-        recipe.resultItemId = "health_potion";
-        recipe.resultCount = 1;
-        recipe.isEquipment = false;
-        registerRecipe(recipe);
+        CraftingRecipe r;
+        r.id = "craft_steel"; r.name = "钢铁";
+        r.description = "坚硬的金属材料，用于高级制作。";
+        r.ingredients = { {"pig_iron", 1}, {"coal", 2} };
+        r.resultItemId = "steel";
+        r.allowBatchCraft = true;
+        r.maxBatchCount = 100;
+        registerRecipe(r);
     }
     
     initialized = true;
-    std::cout << "[CraftingManager] Registered " << recipes.size() << " recipes" << std::endl;
 }
 
-const CraftingRecipe* CraftingManager::getRecipe(const std::string& recipeId) const {
-    for (const auto& recipe : recipes) {
-        if (recipe.id == recipeId) {
-            return &recipe;
-        }
-    }
-    return nullptr;
-}
-
-void CraftingManager::registerRecipe(const CraftingRecipe& recipe) {
-    recipes.push_back(recipe);
-    std::cout << "[CraftingManager] Registered: " << recipe.id << " (" << recipe.name << ")" << std::endl;
-}
-
-bool CraftingManager::canCraft(const CraftingRecipe& recipe, CategoryInventory* inventory) const {
+bool CraftingManager::canCraft(const CraftingRecipe& recipe, CategoryInventory* inventory, int multiplier, int extraSoulCount) const {
     if (!inventory) return false;
     
+    // 检查基础材料
     for (const auto& ing : recipe.ingredients) {
-        if (!inventory->hasItem(ing.itemId, ing.count)) {
+        if (!inventory->hasItem(ing.itemId, ing.count * multiplier)) {
             return false;
         }
     }
+    
+    // 检查武器魂 (如果配方允许且选择了数量)
+    if (recipe.isWeaponForge && extraSoulCount > 0) {
+        if (!inventory->hasItem("weapon_soul", extraSoulCount)) {
+            return false;
+        }
+    }
+    
     return true;
 }
 
-bool CraftingManager::craft(const CraftingRecipe& recipe, CategoryInventory* inventory) {
-    if (!inventory) return false;
+ForgeProbability CraftingManager::calculateForgeProb(int soulCount) {
+    ForgeProbability p;
+    // 基础概率 (0魂)
+    float baseWhite = 0.70f;
+    float baseGreen = 0.20f;
+    float baseBlue  = 0.10f;
     
-    // 检查材料
-    if (!canCraft(recipe, inventory)) {
-        std::cout << "[CraftingManager] Cannot craft " << recipe.name << " - insufficient materials" << std::endl;
-        return false;
+    // 衰减系数模拟
+    float decay = 0.02f * soulCount; 
+    
+    p.white = std::max(0.0f, baseWhite - decay * 2.5f);
+    p.green = std::max(0.0f, baseGreen - decay * 0.5f + (soulCount * 0.01f)); 
+    p.blue  = std::min(0.4f, baseBlue + soulCount * 0.015f);
+    p.purple = std::min(0.3f, 0.0f + soulCount * 0.01f);
+    p.orange = std::min(0.1f, 0.0f + (soulCount > 10 ? (soulCount-10)*0.005f : 0));
+    
+    // 归一化 (确保总和100%)
+    float sum = p.white + p.green + p.blue + p.purple + p.orange;
+    if (sum > 0) {
+        p.white /= sum; p.green /= sum; p.blue /= sum; p.purple /= sum; p.orange /= sum;
     }
+    p.red = 0.0f; // 暂未开放红色
     
-    // 消耗材料
+    return p;
+}
+
+bool CraftingManager::craft(const CraftingRecipe& recipe, CategoryInventory* inventory, int multiplier, int soulCount) {
+    if (!canCraft(recipe, inventory, multiplier, soulCount)) return false;
+    
+    // 1. 消耗材料
     for (const auto& ing : recipe.ingredients) {
-        inventory->removeItem(ing.itemId, ing.count);
+        inventory->removeItem(ing.itemId, ing.count * multiplier);
+    }
+    if (recipe.isWeaponForge && soulCount > 0) {
+        inventory->removeItem("weapon_soul", soulCount);
     }
     
-    // 添加产物
-    int added = inventory->addItem(recipe.resultItemId, recipe.resultCount);
-    
-    if (added > 0) {
-        std::cout << "[CraftingManager] Crafted " << added << "x " << recipe.name << std::endl;
-        return true;
-    } else {
-        std::cout << "[CraftingManager] Failed to add crafted item - inventory full?" << std::endl;
-        // TODO: 返还材料
-        return false;
+    // 2. 产出物品
+    if (recipe.isWeaponForge) {
+        // 锻造逻辑：随机生成品质
+        ForgeProbability prob = calculateForgeProb(soulCount);
+        float r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+        (void)prob; // 显式标记未使用，防止编译器警告
+        (void)r;    // 显式标记未使用
+        
+        // TODO: 使用 prob 和 r 来决定具体产生哪个品质的装备
+        // 目前先产出默认物品
+        inventory->addItem(recipe.resultItemId, 1);
+        std::cout << "[Crafting] Forged weapon with " << soulCount << " souls." << std::endl;
+    } 
+    else {
+        // 普通/批量合成
+        inventory->addItem(recipe.resultItemId, recipe.resultCount * multiplier);
+        std::cout << "[Crafting] Crafted " << (recipe.resultCount * multiplier) << "x " << recipe.name << std::endl;
     }
+    
+    return true;
 }
 
 // ============================================================================
@@ -272,58 +172,41 @@ bool CraftingManager::craft(const CraftingRecipe& recipe, CategoryInventory* inv
 // ============================================================================
 
 CraftingPanel::CraftingPanel()
-    : inventory(nullptr)
-    , panelOpen(false)
-    , selectedRecipe(-1)
-    , hoveredRecipe(-1)
-    , scrollOffset(0)
-    , iconLoaded(false)
-    , iconHovered(false)
-    , iconHoverScale(1.0f)
-    , iconTargetScale(1.0f)
-    , fontLoaded(false)
-    , onCraft(nullptr)
-    , onCraftSuccess(nullptr)
+    : inventory(nullptr), panelOpen(false), selectedRecipe(-1), hoveredRecipe(-1), scrollOffset(0)
+    , currentBatchAmount(1), currentSoulAmount(0)
+    , isDraggingBatchSlider(false), isDraggingSoulSlider(false)
+    , onCraft(nullptr), onCraftSuccess(nullptr)
 {
-    panelSize = sf::Vector2f(500, 400);
+    panelSize = sf::Vector2f(700, 500); 
 }
 
 bool CraftingPanel::init(const std::string& iconPath) {
-    if (iconTexture.loadFromFile(iconPath)) {
-        iconSprite.setTexture(iconTexture);
-        iconSprite.setScale(0.8f, 0.8f);
-        iconLoaded = true;
-        std::cout << "[CraftingPanel] Icon loaded: " << iconPath << std::endl;
-    } else {
-        sf::Image placeholder;
-        placeholder.create(64, 64, sf::Color(100, 80, 40, 200));
-        iconTexture.loadFromImage(placeholder);
-        iconSprite.setTexture(iconTexture);
-        iconLoaded = true;
-        std::cout << "[CraftingPanel] Using placeholder icon" << std::endl;
-    }
-    
+    // 尝试加载字体
     std::vector<std::string> fontPaths = {
         "C:/Windows/Fonts/msyh.ttc",
         "C:/Windows/Fonts/simhei.ttf",
-        "C:/Windows/Fonts/simsun.ttc",
-        "../../assets/fonts/pixel.ttf",
+        "assets/fonts/pixel.ttf",
+        "../../assets/fonts/pixel.ttf"
     };
     
     for (const auto& path : fontPaths) {
-        if (loadFont(path)) break;
+        if (font.loadFromFile(path)) {
+            fontLoaded = true;
+            break;
+        }
     }
     
-    return true;
-}
-
-bool CraftingPanel::loadFont(const std::string& fontPath) {
-    if (font.loadFromFile(fontPath)) {
-        fontLoaded = true;
-        std::cout << "[CraftingPanel] Font loaded: " << fontPath << std::endl;
-        return true;
+    if (iconTexture.loadFromFile(iconPath)) {
+        iconSprite.setTexture(iconTexture);
+        iconSprite.setScale(0.8f, 0.8f);
+    } else {
+        // Fallback icon
+        sf::Image img;
+        img.create(64, 64, sf::Color(100, 100, 100));
+        iconTexture.loadFromImage(img);
+        iconSprite.setTexture(iconTexture);
     }
-    return false;
+    return true;
 }
 
 void CraftingPanel::setIconPosition(float x, float y) {
@@ -332,468 +215,394 @@ void CraftingPanel::setIconPosition(float x, float y) {
 }
 
 void CraftingPanel::update(float dt) {
-    // 图标悬浮动画
-    float scaleSpeed = 8.0f;
-    iconHoverScale += (iconTargetScale - iconHoverScale) * scaleSpeed * dt;
-    
-    // 更新图标缩放（保持中心点）
-    sf::Vector2f iconCenter = iconPosition + sf::Vector2f(
-        iconTexture.getSize().x * ICON_BASE_SCALE / 2.0f,
-        iconTexture.getSize().y * ICON_BASE_SCALE / 2.0f
-    );
-    iconSprite.setScale(ICON_BASE_SCALE * iconHoverScale, ICON_BASE_SCALE * iconHoverScale);
-    iconSprite.setPosition(
-        iconCenter.x - iconTexture.getSize().x * ICON_BASE_SCALE * iconHoverScale / 2.0f,
-        iconCenter.y - iconTexture.getSize().y * ICON_BASE_SCALE * iconHoverScale / 2.0f
-    );
+    (void)dt; // 消除未使用参数警告
+    // 简单的动画逻辑可放在这里
+}
+
+void CraftingPanel::open() {
+    panelOpen = true;
+    currentBatchAmount = 1;
+    currentSoulAmount = 0;
+}
+
+void CraftingPanel::close() {
+    panelOpen = false;
+    isDraggingBatchSlider = false;
+    isDraggingSoulSlider = false;
+}
+
+void CraftingPanel::toggle() {
+    if (panelOpen) close(); else open();
 }
 
 void CraftingPanel::handleEvent(const sf::Event& event, sf::RenderWindow& window) {
-    sf::Vector2i mousePos = sf::Mouse::getPosition(window);
-    sf::Vector2f mousePosF(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y));
-    
-    // 检查图标悬浮
-    sf::FloatRect iconBounds(iconPosition.x - 5, iconPosition.y - 5, 60, 60);
-    if (iconBounds.contains(mousePosF)) {
-        iconHovered = true;
-        iconTargetScale = 1.15f;
-    } else {
-        iconHovered = false;
-        iconTargetScale = 1.0f;
-    }
-    
-    // 图标点击
-    if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
-        if (!panelOpen && iconBounds.contains(mousePosF)) {
+    // 图标点击处理
+    if (event.type == sf::Event::MouseButtonPressed && !panelOpen) {
+        sf::FloatRect iconBounds(iconPosition, sf::Vector2f(60, 60));
+        if (iconBounds.contains(sf::Vector2f(sf::Mouse::getPosition(window)))) {
             open();
-            return;
-        }
-    }
-    
-    // 键盘快捷键
-    if (event.type == sf::Event::KeyPressed) {
-        if (event.key.code == sf::Keyboard::C) {
-            toggle();
-            return;
-        }
-        if (event.key.code == sf::Keyboard::Escape && panelOpen) {
-            close();
             return;
         }
     }
     
     if (!panelOpen) return;
     
-    sf::FloatRect panelBounds(panelPosition, panelSize);
+    sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+    sf::Vector2f mouseF(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y));
     
-    // 鼠标移动
-    if (event.type == sf::Event::MouseMoved) {
-        if (panelBounds.contains(mousePosF)) {
-            hoveredRecipe = getRecipeAtPosition(mousePosF);
-        } else {
-            hoveredRecipe = -1;
-        }
-    }
+    // 计算布局区域
+    float listWidth = 220.0f;
+    float detailX = panelPosition.x + listWidth + 10;
+    float bottomControlsY = panelPosition.y + panelSize.y - 120; // 控制区起始Y
     
-    // 鼠标滚轮
-    if (event.type == sf::Event::MouseWheelScrolled) {
-        if (panelBounds.contains(mousePosF)) {
-            scrollOffset -= static_cast<int>(event.mouseWheelScroll.delta * 2);
-            scrollOffset = std::max(0, scrollOffset);
-            int maxScroll = static_cast<int>(CraftingManager::getInstance().getAllRecipes().size()) - 5;
-            scrollOffset = std::min(scrollOffset, std::max(0, maxScroll));
-        }
-    }
-    
-    // 鼠标点击
     if (event.type == sf::Event::MouseButtonPressed) {
-        sf::FloatRect closeButton(
-            panelPosition.x + panelSize.x - 30,
-            panelPosition.y + 5,
-            25, 25
-        );
-        
         if (event.mouseButton.button == sf::Mouse::Left) {
-            if (closeButton.contains(mousePosF)) {
-                close();
-                return;
+            
+            // 1. 关闭按钮检测
+            sf::FloatRect closeBtn(panelPosition.x + panelSize.x - 30, panelPosition.y, 30, 30);
+            if (closeBtn.contains(mouseF)) { close(); return; }
+
+            // 2. 列表点击检测
+            int clicked = getRecipeAtPosition(mouseF);
+            if (clicked != -1) {
+                selectedRecipe = clicked;
+                currentBatchAmount = 1; // 重置
+                currentSoulAmount = 0;  // 重置
             }
             
-            if (!panelBounds.contains(mousePosF)) {
-                close();
-                return;
-            }
-            
-            // 点击配方列表
-            int clickedRecipe = getRecipeAtPosition(mousePosF);
-            if (clickedRecipe >= 0) {
-                selectedRecipe = clickedRecipe;
-            }
-            
-            // 点击合成按钮
-            if (selectedRecipe >= 0) {
-                sf::FloatRect craftButton(
-                    panelPosition.x + LIST_WIDTH + 30,
-                    panelPosition.y + panelSize.y - 50,
-                    100, 35
-                );
-                
-                if (craftButton.contains(mousePosF)) {
-                    const auto& recipes = CraftingManager::getInstance().getAllRecipes();
-                    if (selectedRecipe < static_cast<int>(recipes.size())) {
-                        const CraftingRecipe& recipe = recipes[selectedRecipe];
-                        if (CraftingManager::getInstance().craft(recipe, inventory)) {
-                            if (onCraft) {
-                                onCraft(recipe);
-                            }
-                            if (onCraftSuccess) {
-                                onCraftSuccess(recipe.resultItemId, recipe.resultCount);
-                            }
+            // 3. 按钮点击检测 (合成按钮)
+            sf::FloatRect craftBtn(detailX, panelPosition.y + panelSize.y - 50, 120, 40);
+            if (craftBtn.contains(mouseF)) {
+                if (selectedRecipe != -1) {
+                    const auto& r = CraftingManager::getInstance().getAllRecipes()[selectedRecipe];
+                    if (CraftingManager::getInstance().craft(r, inventory, currentBatchAmount, currentSoulAmount)) {
+                        // 成功合成，调用回调
+                        if (onCraft) onCraft(r);
+                        // GameState 可能通过这个回调来播放音效或显示提示
+                        if (onCraftSuccess) {
+                            onCraftSuccess(r.resultItemId, r.resultCount * currentBatchAmount);
                         }
                     }
                 }
+            }
+            
+            // 4. 滑动条点击开始
+            if (selectedRecipe != -1) {
+                const auto& r = CraftingManager::getInstance().getAllRecipes()[selectedRecipe];
+                
+                // 批量滑动条区域
+                if (r.allowBatchCraft) {
+                    sf::FloatRect sliderRect(detailX + 80, bottomControlsY, 200, 20);
+                    if (sliderRect.contains(mouseF)) isDraggingBatchSlider = true;
+                }
+                // 武器魂滑动条区域
+                if (r.isWeaponForge) {
+                    sf::FloatRect sliderRect(detailX + 80, bottomControlsY + 30, 200, 20);
+                    if (sliderRect.contains(mouseF)) isDraggingSoulSlider = true;
+                }
+            }
+        }
+    }
+    
+    if (event.type == sf::Event::MouseButtonReleased) {
+        isDraggingBatchSlider = false;
+        isDraggingSoulSlider = false;
+    }
+    
+    // 鼠标移动 - 处理拖拽
+    if (event.type == sf::Event::MouseMoved) {
+        if (selectedRecipe != -1) {
+            const auto& r = CraftingManager::getInstance().getAllRecipes()[selectedRecipe];
+            float sliderX = detailX + 80;
+            float sliderWidth = 200;
+            
+            if (isDraggingBatchSlider && r.allowBatchCraft) {
+                float ratio = (mouseF.x - sliderX) / sliderWidth;
+                ratio = std::max(0.0f, std::min(1.0f, ratio));
+                currentBatchAmount = 1 + static_cast<int>(ratio * (r.maxBatchCount - 1));
+            }
+            
+            if (isDraggingSoulSlider && r.isWeaponForge) {
+                float ratio = (mouseF.x - sliderX) / sliderWidth;
+                ratio = std::max(0.0f, std::min(1.0f, ratio));
+                currentSoulAmount = static_cast<int>(ratio * r.maxWeaponSouls);
             }
         }
     }
 }
 
 void CraftingPanel::render(sf::RenderWindow& window) {
-    // 渲染图标
-    if (iconLoaded) {
-        sf::RectangleShape iconBg(sf::Vector2f(60, 60));
-        iconBg.setPosition(iconPosition.x - 5, iconPosition.y - 5);
-        iconBg.setFillColor(sf::Color(30, 30, 40, 200));
-        iconBg.setOutlineThickness(2);
-        iconBg.setOutlineColor(BORDER_COLOR);
-        window.draw(iconBg);
+    // 绘制图标
+    if (iconSprite.getTexture()) {
         window.draw(iconSprite);
     }
     
     if (!panelOpen) return;
     
-    // 计算面板位置
-    sf::Vector2u windowSize = window.getSize();
-    panelPosition.x = (windowSize.x - panelSize.x) / 2;
-    panelPosition.y = (windowSize.y - panelSize.y) / 2;
+    // 居中计算
+    sf::Vector2u winSize = window.getSize();
+    panelPosition = sf::Vector2f((winSize.x - panelSize.x)/2, (winSize.y - panelSize.y)/2);
     
-    // 背景
+    // 1. 背景
     sf::RectangleShape bg(panelSize);
     bg.setPosition(panelPosition);
-    bg.setFillColor(BG_COLOR);
-    bg.setOutlineThickness(3);
-    bg.setOutlineColor(BORDER_COLOR);
+    bg.setFillColor(Style::PanelBG);
+    bg.setOutlineThickness(2);
+    bg.setOutlineColor(Style::Border);
     window.draw(bg);
     
-    // 标题栏
-    sf::RectangleShape titleBar(sf::Vector2f(panelSize.x - 6, 30));
-    titleBar.setPosition(panelPosition.x + 3, panelPosition.y + 3);
-    titleBar.setFillColor(sf::Color(60, 45, 30, 200));
+    // 2. 标题栏
+    sf::RectangleShape titleBar(sf::Vector2f(panelSize.x, 40));
+    titleBar.setPosition(panelPosition);
+    titleBar.setFillColor(Style::TitleBG);
     window.draw(titleBar);
     
     if (fontLoaded) {
         sf::Text title;
         title.setFont(font);
-        std::string titleStr = "工作台 - 合成";
+        // FIX: 创建持久的 string 对象
+        std::string titleStr = "工匠作坊";
         title.setString(sf::String::fromUtf8(titleStr.begin(), titleStr.end()));
-        title.setCharacterSize(20);
-        title.setFillColor(sf::Color(255, 220, 150));
+        title.setCharacterSize(24);
+        title.setFillColor(Style::TextHighlight);
         title.setPosition(panelPosition.x + 15, panelPosition.y + 5);
         window.draw(title);
+        
+        sf::Text closeX("X", font, 24);
+        closeX.setPosition(panelPosition.x + panelSize.x - 30, panelPosition.y + 5);
+        window.draw(closeX);
     }
     
-    // 关闭按钮
-    sf::RectangleShape closeBtn(sf::Vector2f(20, 20));
-    closeBtn.setPosition(panelPosition.x + panelSize.x - 25, panelPosition.y + 8);
-    closeBtn.setFillColor(sf::Color(150, 50, 50, 200));
-    closeBtn.setOutlineThickness(1);
-    closeBtn.setOutlineColor(sf::Color::White);
-    window.draw(closeBtn);
-    
-    if (fontLoaded) {
-        sf::Text closeText;
-        closeText.setFont(font);
-        closeText.setString("X");
-        closeText.setCharacterSize(14);
-        closeText.setFillColor(sf::Color::White);
-        closeText.setPosition(panelPosition.x + panelSize.x - 21, panelPosition.y + 7);
-        window.draw(closeText);
-    }
-    
-    // 分隔线
-    sf::RectangleShape divider(sf::Vector2f(2, panelSize.y - 50));
-    divider.setPosition(panelPosition.x + LIST_WIDTH, panelPosition.y + 40);
-    divider.setFillColor(sf::Color(80, 80, 80));
-    window.draw(divider);
-    
-    // 渲染配方列表
+    // 3. 配方列表
     renderRecipeList(window);
     
-    // 渲染配方详情
+    // 4. 配方详情
     renderRecipeDetail(window);
 }
 
 void CraftingPanel::renderRecipeList(sf::RenderWindow& window) {
-    const auto& recipes = CraftingManager::getInstance().getAllRecipes();
+    float listWidth = 220.0f;
+    float itemHeight = 50.0f;
+    float startY = panelPosition.y + 50;
     
-    float listX = panelPosition.x + 10;
-    float listY = panelPosition.y + 45;
-    float listHeight = panelSize.y - 60;
-    
-    // 配方列表背景
-    sf::RectangleShape listBg(sf::Vector2f(LIST_WIDTH - 20, listHeight));
-    listBg.setPosition(listX, listY);
-    listBg.setFillColor(sf::Color(20, 20, 25, 200));
+    // 列表背景
+    sf::RectangleShape listBg(sf::Vector2f(listWidth, panelSize.y - 60));
+    listBg.setPosition(panelPosition.x + 10, startY);
+    listBg.setFillColor(Style::ListBG);
     window.draw(listBg);
     
-    // 渲染可见的配方
-    int visibleRecipes = static_cast<int>(listHeight / RECIPE_HEIGHT);
+    const auto& recipes = CraftingManager::getInstance().getAllRecipes();
+    int visibleCount = static_cast<int>((panelSize.y - 70) / itemHeight);
     
-    for (int i = 0; i < visibleRecipes && (i + scrollOffset) < static_cast<int>(recipes.size()); i++) {
-        int recipeIndex = i + scrollOffset;
-        const CraftingRecipe& recipe = recipes[recipeIndex];
+    for (int i = 0; i < visibleCount; ++i) {
+        int idx = i + scrollOffset;
+        if (idx >= static_cast<int>(recipes.size())) break;
         
-        float itemY = listY + i * RECIPE_HEIGHT;
+        const auto& r = recipes[idx];
+        sf::Vector2f itemPos(panelPosition.x + 15, startY + i * itemHeight + 5);
         
-        // 配方项背景
-        sf::RectangleShape itemBg(sf::Vector2f(LIST_WIDTH - 24, RECIPE_HEIGHT - 4));
-        itemBg.setPosition(listX + 2, itemY + 2);
-        
-        bool canCraft = CraftingManager::getInstance().canCraft(recipe, inventory);
-        bool isSelected = (recipeIndex == selectedRecipe);
-        bool isHovered = (recipeIndex == hoveredRecipe);
-        
-        if (isSelected) {
-            itemBg.setFillColor(SLOT_SELECTED_COLOR);
-        } else if (isHovered) {
-            itemBg.setFillColor(SLOT_HOVER_COLOR);
-        } else {
-            itemBg.setFillColor(SLOT_COLOR);
-        }
-        
-        itemBg.setOutlineThickness(1);
-        itemBg.setOutlineColor(canCraft ? sf::Color(100, 200, 100) : sf::Color(80, 80, 80));
+        sf::RectangleShape itemBg(sf::Vector2f(listWidth - 10, itemHeight - 5));
+        itemBg.setPosition(itemPos);
+        itemBg.setFillColor(idx == selectedRecipe ? Style::ItemSelected : Style::ItemNormal);
         window.draw(itemBg);
         
-        // 配方名称
         if (fontLoaded) {
-            sf::Text nameText;
-            nameText.setFont(font);
-            nameText.setString(sf::String::fromUtf8(recipe.name.begin(), recipe.name.end()));
-            nameText.setCharacterSize(14);
-            nameText.setFillColor(canCraft ? sf::Color(150, 255, 150) : sf::Color(180, 180, 180));
-            nameText.setPosition(listX + 10, itemY + 8);
-            window.draw(nameText);
-            
-            // 产物信息
-            std::stringstream ss;
-            ss << "-> " << recipe.resultCount << "x";
-            sf::Text resultText;
-            resultText.setFont(font);
-            resultText.setString(ss.str());
-            resultText.setCharacterSize(12);
-            resultText.setFillColor(sf::Color(200, 200, 100));
-            resultText.setPosition(listX + 10, itemY + 30);
-            window.draw(resultText);
-        }
-        
-        // 可合成标记
-        if (canCraft) {
-            sf::CircleShape indicator(5);
-            indicator.setFillColor(sf::Color(100, 255, 100));
-            indicator.setPosition(listX + LIST_WIDTH - 40, itemY + 25);
-            window.draw(indicator);
+            sf::Text name;
+            name.setFont(font);
+            name.setString(sf::String::fromUtf8(r.name.begin(), r.name.end()));
+            name.setCharacterSize(18);
+            name.setPosition(itemPos.x + 10, itemPos.y + 10);
+            name.setFillColor(Style::TextNormal);
+            window.draw(name);
         }
     }
+}
+
+void CraftingPanel::renderSlider(sf::RenderWindow& window, const sf::Vector2f& pos, float width, int min, int max, int& current, const std::string& label) {
+    if (!fontLoaded) return;
+    
+    // 标签
+    sf::Text lbl;
+    lbl.setFont(font);
+    lbl.setString(sf::String::fromUtf8(label.begin(), label.end()));
+    lbl.setCharacterSize(16);
+    lbl.setPosition(pos.x - 70, pos.y);
+    lbl.setFillColor(Style::TextNormal);
+    window.draw(lbl);
+    
+    // 槽
+    sf::RectangleShape slot(sf::Vector2f(width, 20));
+    slot.setPosition(pos.x, pos.y + 2);
+    slot.setFillColor(Style::SliderBG);
+    slot.setOutlineColor(sf::Color(100,100,100));
+    slot.setOutlineThickness(1);
+    window.draw(slot);
+    
+    // 滑块填充
+    float ratio = 0.0f;
+    if (max > min) ratio = (float)(current - min) / (max - min);
+    
+    sf::RectangleShape fill(sf::Vector2f(width * ratio, 20));
+    fill.setPosition(pos.x, pos.y + 2);
+    fill.setFillColor(Style::SliderFill);
+    window.draw(fill);
+    
+    // 数值显示
+    std::string valStr = std::to_string(current);
+    if (max > 1000) valStr += "/" + std::to_string(max); 
+    sf::Text val;
+    val.setFont(font);
+    val.setString(valStr);
+    val.setCharacterSize(14);
+    val.setPosition(pos.x + width + 10, pos.y + 2);
+    window.draw(val);
 }
 
 void CraftingPanel::renderRecipeDetail(sf::RenderWindow& window) {
-    const auto& recipes = CraftingManager::getInstance().getAllRecipes();
+    if (selectedRecipe == -1 || !fontLoaded) return;
     
-    if (selectedRecipe < 0 || selectedRecipe >= static_cast<int>(recipes.size())) {
-        // 无选中配方时的提示
-        if (fontLoaded) {
-            sf::Text hintText;
-            hintText.setFont(font);
-            std::string hint = "选择左侧配方查看详情";
-            hintText.setString(sf::String::fromUtf8(hint.begin(), hint.end()));
-            hintText.setCharacterSize(14);
-            hintText.setFillColor(sf::Color(150, 150, 150));
-            hintText.setPosition(panelPosition.x + LIST_WIDTH + 30, panelPosition.y + 150);
-            window.draw(hintText);
-        }
-        return;
+    const auto& r = CraftingManager::getInstance().getAllRecipes()[selectedRecipe];
+    float listWidth = 220.0f;
+    float x = panelPosition.x + listWidth + 20;
+    float y = panelPosition.y + 50;
+    
+    // 1. 名称与描述
+    sf::Text name;
+    name.setFont(font);
+    name.setString(sf::String::fromUtf8(r.name.begin(), r.name.end()));
+    name.setCharacterSize(28);
+    name.setPosition(x, y);
+    name.setFillColor(Style::TextHighlight);
+    window.draw(name);
+    
+    sf::Text desc;
+    desc.setFont(font);
+    desc.setString(sf::String::fromUtf8(r.description.begin(), r.description.end()));
+    desc.setCharacterSize(16);
+    desc.setPosition(x, y + 40);
+    desc.setFillColor(sf::Color(180, 180, 180));
+    window.draw(desc);
+    
+    // 2. 材料需求列表
+    y += 80;
+    sf::Text reqTitle;
+    reqTitle.setFont(font);
+    // FIX: 创建持久的 string 对象
+    std::string reqStr = "所需材料:";
+    reqTitle.setString(sf::String::fromUtf8(reqStr.begin(), reqStr.end()));
+    reqTitle.setCharacterSize(18);
+    reqTitle.setPosition(x, y);
+    window.draw(reqTitle);
+    
+    y += 30;
+    for (const auto& ing : r.ingredients) {
+        int need = ing.count * currentBatchAmount;
+        int have = inventory ? inventory->getItemCount(ing.itemId) : 0;
+        
+        std::stringstream ss;
+        ss << "- " << ing.itemId << ": " << need << " (拥有: " << have << ")"; 
+        
+        sf::Text ingText;
+        ingText.setFont(font);
+        // FIX: 关键修正！保存 ss.str() 到局部变量，避免 .begin() 和 .end() 作用于不同的临时对象
+        std::string ingStr = ss.str();
+        ingText.setString(sf::String::fromUtf8(ingStr.begin(), ingStr.end()));
+        ingText.setCharacterSize(16);
+        ingText.setPosition(x + 10, y);
+        ingText.setFillColor(have >= need ? Style::TextGreen : Style::TextRed);
+        window.draw(ingText);
+        y += 25;
     }
     
-    const CraftingRecipe& recipe = recipes[selectedRecipe];
-    float detailX = panelPosition.x + LIST_WIDTH + 20;
-    float detailY = panelPosition.y + 50;
-    float detailWidth = panelSize.x - LIST_WIDTH - 40;
+    // 3. 动态控制区 (批量 / 锻造)
+    float controlY = panelPosition.y + panelSize.y - 140;
     
-    if (fontLoaded) {
-        // 配方名称
-        sf::Text nameText;
-        nameText.setFont(font);
-        nameText.setString(sf::String::fromUtf8(recipe.name.begin(), recipe.name.end()));
-        nameText.setCharacterSize(18);
-        nameText.setFillColor(sf::Color(255, 220, 150));
-        nameText.setPosition(detailX, detailY);
-        window.draw(nameText);
+    // A. 批量合成滑块
+    if (r.allowBatchCraft) {
+        renderSlider(window, sf::Vector2f(x + 70, controlY), 200.0f, 1, r.maxBatchCount, currentBatchAmount, "批量数量:");
         
-        // 描述
-        sf::Text descText;
-        descText.setFont(font);
-        descText.setString(sf::String::fromUtf8(recipe.description.begin(), recipe.description.end()));
-        descText.setCharacterSize(12);
-        descText.setFillColor(sf::Color(180, 180, 180));
-        descText.setPosition(detailX, detailY + 30);
-        window.draw(descText);
-        
-        // 所需材料标题
-        std::string ingTitle = "所需材料:";
-        sf::Text ingTitleText;
-        ingTitleText.setFont(font);
-        ingTitleText.setString(sf::String::fromUtf8(ingTitle.begin(), ingTitle.end()));
-        ingTitleText.setCharacterSize(14);
-        ingTitleText.setFillColor(sf::Color(200, 200, 200));
-        ingTitleText.setPosition(detailX, detailY + 60);
-        window.draw(ingTitleText);
-        
-        // 渲染所需材料
-        float ingY = detailY + 85;
-        for (const auto& ing : recipe.ingredients) {
-            bool hasEnough = inventory ? inventory->hasItem(ing.itemId, ing.count) : false;
-            renderIngredient(window, ing, sf::Vector2f(detailX, ingY), hasEnough);
-            ingY += 30;
-        }
-        
-        // 产出标题
-        std::string resultTitle = "产出:";
-        sf::Text resultTitleText;
-        resultTitleText.setFont(font);
-        resultTitleText.setString(sf::String::fromUtf8(resultTitle.begin(), resultTitle.end()));
-        resultTitleText.setCharacterSize(14);
-        resultTitleText.setFillColor(sf::Color(200, 200, 200));
-        resultTitleText.setPosition(detailX, ingY + 10);
-        window.draw(resultTitleText);
-        
-        // 产出物品
-        const ItemData* resultData = ItemDatabase::getInstance().getItemData(recipe.resultItemId);
-        std::string resultName = resultData ? resultData->name : recipe.resultItemId;
-        
-        std::stringstream resultSS;
-        resultSS << recipe.resultCount << "x " << resultName;
-        std::string resultStr = resultSS.str();
-        sf::Text resultText;
-        resultText.setFont(font);
-        resultText.setString(sf::String::fromUtf8(resultStr.begin(), resultStr.end()));
-        resultText.setCharacterSize(14);
-        resultText.setFillColor(sf::Color(100, 255, 100));
-        resultText.setPosition(detailX + 20, ingY + 35);
-        window.draw(resultText);
-        
-        // 如果是装备，显示特殊效果
-        if (recipe.isEquipment) {
-            const EquipmentData* equipData = EquipmentManager::getInstance().getEquipmentData(recipe.resultItemId);
-            if (equipData && equipData->stats.ignoreDefense) {
-                std::string effectStr = "特效: 无视目标防御";
-                sf::Text effectText;
-                effectText.setFont(font);
-                effectText.setString(sf::String::fromUtf8(effectStr.begin(), effectStr.end()));
-                effectText.setCharacterSize(12);
-                effectText.setFillColor(sf::Color(255, 200, 100));
-                effectText.setPosition(detailX + 20, ingY + 55);
-                window.draw(effectText);
-            }
+        // 显示总消耗
+        if (currentBatchAmount > 1) {
+            sf::Text totalHint;
+            totalHint.setFont(font);
+            std::string hint = "消耗将翻倍";
+            totalHint.setString(sf::String::fromUtf8(hint.begin(), hint.end()));
+            totalHint.setCharacterSize(14);
+            totalHint.setPosition(x + 70, controlY + 25);
+            totalHint.setFillColor(sf::Color(150,150,150));
+            window.draw(totalHint);
         }
     }
     
-    // 合成按钮
-    bool canCraft = CraftingManager::getInstance().canCraft(recipe, inventory);
-    
-    sf::RectangleShape craftBtn(sf::Vector2f(100, 35));
-    craftBtn.setPosition(detailX + 10, panelPosition.y + panelSize.y - 50);
-    craftBtn.setFillColor(canCraft ? CRAFTABLE_COLOR : NOT_CRAFTABLE_COLOR);
-    craftBtn.setOutlineThickness(2);
-    craftBtn.setOutlineColor(canCraft ? sf::Color(100, 200, 100) : sf::Color(150, 100, 100));
-    window.draw(craftBtn);
-    
-    if (fontLoaded) {
-        sf::Text btnText;
-        btnText.setFont(font);
-        std::string btnStr = canCraft ? "合成" : "材料不足";
-        btnText.setString(sf::String::fromUtf8(btnStr.begin(), btnStr.end()));
-        btnText.setCharacterSize(14);
-        btnText.setFillColor(sf::Color::White);
+    // B. 武器锻造滑块与概率
+    if (r.isWeaponForge) {
+        // 武器魂滑块
+        int soulHave = inventory ? inventory->getItemCount("weapon_soul") : 0;
+        int actualMax = r.maxWeaponSouls; 
         
-        sf::FloatRect bounds = btnText.getLocalBounds();
-        btnText.setPosition(
-            detailX + 10 + (100 - bounds.width) / 2,
-            panelPosition.y + panelSize.y - 45
-        );
-        window.draw(btnText);
+        renderSlider(window, sf::Vector2f(x + 70, controlY), 200.0f, 0, actualMax, currentSoulAmount, "投入器魂:");
+        
+        // 概率预览表
+        ForgeProbability prob = CraftingManager::getInstance().calculateForgeProb(currentSoulAmount);
+        
+        float probY = controlY + 35;
+        auto drawProb = [&](const std::string& label, float p, sf::Color c, float offX) {
+            std::stringstream ss;
+            ss << label << ":" << (int)(p*100) << "%";
+            sf::Text t;
+            t.setFont(font);
+            // FIX: 这里也需要注意，不过之前的写法 std::string str = ss.str() 已经是安全的了
+            std::string str = ss.str();
+            t.setString(sf::String::fromUtf8(str.begin(), str.end()));
+            t.setCharacterSize(14);
+            t.setPosition(x + offX, probY);
+            t.setFillColor(c);
+            window.draw(t);
+        };
+        
+        drawProb("白", prob.white, sf::Color::White, 0);
+        drawProb("绿", prob.green, sf::Color::Green, 60);
+        drawProb("蓝", prob.blue, sf::Color::Cyan, 120);
+        drawProb("紫", prob.purple, sf::Color::Magenta, 180);
+        drawProb("橙", prob.orange, sf::Color(255, 165, 0), 240);
+        
+        // 警告：如果没有魂
+        if (currentSoulAmount > soulHave) {
+            sf::Text warn;
+            warn.setFont(font);
+            std::string w = "武器魂不足!";
+            warn.setString(sf::String::fromUtf8(w.begin(), w.end()));
+            warn.setCharacterSize(14);
+            warn.setPosition(x + 350, controlY);
+            warn.setFillColor(Style::TextRed);
+            window.draw(warn);
+        }
     }
-}
-
-void CraftingPanel::renderIngredient(sf::RenderWindow& window, const RecipeIngredient& ing, 
-                                     const sf::Vector2f& pos, bool hasEnough) {
-    if (!fontLoaded) return;
     
-    const ItemData* data = ItemDatabase::getInstance().getItemData(ing.itemId);
-    std::string itemName = data ? data->name : ing.itemId;
+    // 4. 底部按钮
+    bool can = CraftingManager::getInstance().canCraft(r, inventory, currentBatchAmount, currentSoulAmount);
+    sf::RectangleShape btn(sf::Vector2f(120, 40));
+    btn.setPosition(x, panelPosition.y + panelSize.y - 50);
+    btn.setFillColor(can ? Style::ButtonNormal : Style::ButtonDisabled);
+    window.draw(btn);
     
-    int owned = inventory ? inventory->getItemCount(ing.itemId) : 0;
-    
-    std::stringstream ingredientSS;
-    ingredientSS << "  " << ing.count << "x " << itemName << " (" << owned << "/" << ing.count << ")";
-    std::string ingredientStr = ingredientSS.str();
-    
-    sf::Text text;
-    text.setFont(font);
-    text.setString(sf::String::fromUtf8(ingredientStr.begin(), ingredientStr.end()));
-    text.setCharacterSize(13);
-    text.setFillColor(hasEnough ? sf::Color(150, 255, 150) : sf::Color(255, 150, 150));
-    text.setPosition(pos);
-    window.draw(text);
-    
-    // 状态指示
-    sf::CircleShape indicator(4);
-    indicator.setFillColor(hasEnough ? sf::Color(100, 255, 100) : sf::Color(255, 100, 100));
-    indicator.setPosition(pos.x, pos.y + 5);
-    window.draw(indicator);
+    sf::Text btnTxt;
+    btnTxt.setFont(font);
+    std::string bStr = r.isWeaponForge ? "开始锻造" : "合成";
+    btnTxt.setString(sf::String::fromUtf8(bStr.begin(), bStr.end()));
+    btnTxt.setCharacterSize(18);
+    btnTxt.setPosition(x + 25, panelPosition.y + panelSize.y - 42);
+    window.draw(btnTxt);
 }
 
 int CraftingPanel::getRecipeAtPosition(const sf::Vector2f& pos) const {
-    float listX = panelPosition.x + 10;
-    float listY = panelPosition.y + 45;
-    float listHeight = panelSize.y - 60;
-    
-    sf::FloatRect listBounds(listX, listY, LIST_WIDTH - 20, listHeight);
-    if (!listBounds.contains(pos)) return -1;
-    
-    int index = static_cast<int>((pos.y - listY) / RECIPE_HEIGHT) + scrollOffset;
-    
-    const auto& recipes = CraftingManager::getInstance().getAllRecipes();
-    if (index >= 0 && index < static_cast<int>(recipes.size())) {
-        return index;
+    float listWidth = 220.0f;
+    float startY = panelPosition.y + 50;
+    if (pos.x > panelPosition.x + 10 && pos.x < panelPosition.x + listWidth) {
+        if (pos.y > startY && pos.y < panelPosition.y + panelSize.y - 10) {
+            int idx = static_cast<int>((pos.y - startY) / 50.0f) + scrollOffset;
+            if (idx >= 0 && idx < static_cast<int>(CraftingManager::getInstance().getAllRecipes().size())) return idx;
+        }
     }
-    
     return -1;
-}
-
-void CraftingPanel::open() {
-    panelOpen = true;
-    selectedRecipe = -1;
-    hoveredRecipe = -1;
-    scrollOffset = 0;
-    std::cout << "[CraftingPanel] Opened" << std::endl;
-}
-
-void CraftingPanel::close() {
-    panelOpen = false;
-    std::cout << "[CraftingPanel] Closed" << std::endl;
-}
-
-void CraftingPanel::toggle() {
-    if (panelOpen) close();
-    else open();
 }

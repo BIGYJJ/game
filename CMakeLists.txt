@@ -16,7 +16,11 @@ set(SOURCES
     src/World/TileMap.cpp
     src/Entity/PlayerStats.cpp
     src/Entity/Tree.cpp
+    src/Entity/Monster.cpp
     src/Entity/Rabbit.cpp
+    # 新增建筑和植物系统
+    src/Entity/StoneBuild.cpp
+    src/Entity/WildPlant.cpp
     src/UI/StatsPanel.cpp
     src/Items/Item.cpp
     src/Items/Inventory.cpp
@@ -27,22 +31,14 @@ set(SOURCES
     src/Items/CategoryInventory.cpp
     src/Items/Crafting.cpp
     src/Items/Equipment.cpp
-    src/Entity/Monster.cpp
-    src/Entity/StoneBuild.cpp
-    src/Entity/WildPlant.cpp
-    src/Entity/Fowl.cpp
-    src/Entity/Chick.cpp
-    src/Entity/Hen.cpp
+    # 宠物系统
     src/Pet/Pet.cpp
-    src/Pet/PetManager.cpp
     src/Pet/PetRabbit.cpp
+    src/Pet/PetManager.cpp
     src/UI/PetPanel.cpp
-    src/Entity/Pig.cpp     
-    src/Entity/Cattle.cpp  
 )
 
-
-
+# 头文件（帮助IDE识别）
 set(HEADERS
     src/Core/Game.h
     src/States/State.h
@@ -52,10 +48,11 @@ set(HEADERS
     src/World/TileMap.h
     src/World/Camera.h
     src/Entity/Tree.h
+    src/Entity/Monster.h
     src/Entity/Rabbit.h
-    src/Entity/Fowl.h
-    src/Entity/Chick.h
-    src/Entity/Hen.h
+    # 新增建筑和植物系统
+    src/Entity/StoneBuild.h
+    src/Entity/WildPlant.h
     src/Systems/TimeSystem.h
     src/UI/StatsPanel.h
     # 物品和背包系统
@@ -68,8 +65,11 @@ set(HEADERS
     src/UI/InventoryPanel.h
     src/UI/EventLogPanel.h
     src/UI/CategoryInventoryPanel.h
-    src/Entity/Pig.h       
-    src/Entity/Cattle.h    
+    # 宠物系统
+    src/Pet/Pet.h
+    src/Pet/PetRabbit.h
+    src/Pet/PetManager.h
+    src/UI/PetPanel.h
 )
 
 # 创建可执行文件
@@ -113,7 +113,7 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 
 # 编译选项
 if(MSVC)
-    target_compile_options(${PROJECT_NAME} PRIVATE /W4)
+    target_compile_options(${PROJECT_NAME} PRIVATE /W4 /utf-8)
 else()
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra)
 endif()

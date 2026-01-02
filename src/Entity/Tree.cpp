@@ -5,6 +5,7 @@
 #include <cmath>
 #include <algorithm>
 #include <sstream>
+#include <algorithm>
 #define U8(str) (const char*)u8##str
 // ============================================================================
 // Tree 构造函数
@@ -18,24 +19,31 @@ Tree::Tree()
     , defense(5.0f)
     , position(0, 0)
     , size(64, 64)
+    , hasCustomCollisionBox(false)      // 【新增】
+    , customCollisionX(0.0f)            // 【新增】
+    , customCollisionY(0.0f)            // 【新增】
+    , customCollisionWidth(0.0f)        // 【新增】
+    , customCollisionHeight(0.0f)       // 【新增】
+    , originalTileWidth(64.0f)          // 【新增】
+    , originalTileHeight(64.0f)         // 【新增】
     , growthStage(TreeGrowthStage::Mature)
     , growthTimer(0.0f)
-    , seedlingTime(60.0f)       // 1分钟
-    , growingTime(120.0f)       // 2分钟
-    , matureTime(180.0f)        // 3分钟结果
-    , fruitRegrowTime(60.0f)    // 1分钟果实再生
+    , seedlingTime(60.0f)
+    , growingTime(120.0f)
+    , matureTime(180.0f)
+    , fruitRegrowTime(60.0f)
     , currentTexture(nullptr)
     , texturesLoaded(false)
-    , expMin(5)                 // 默认经验范围
+    , expMin(5)
     , expMax(12)
-    , goldMin(10)               // 默认金币范围
+    , goldMin(10)
     , goldMax(30)
-    , dropMax(3)                // 默认最大掉落数量
+    , dropMax(3)
     , isHovered(false)
     , shakeTimer(0.0f)
     , shakeIntensity(0.0f)
-    , canTransform(false)       // 是否可以变换
-    , hasTransformed(false)     // 是否已经变换过
+    , canTransform(false)
+    , hasTransformed(false)
     , onDestroyed(nullptr)
     , onFruitHarvested(nullptr)
     , onGrowthStageChanged(nullptr)
@@ -45,6 +53,7 @@ Tree::Tree()
     dropItems.push_back(DropItem("seed", "种子", 1, 2, 0.5f));
     dropItems.push_back(DropItem("stick", "树枝", 1, 2, 0.4f));
 }
+
 
 Tree::Tree(float x, float y, const std::string& type)
     : Tree()
@@ -105,6 +114,7 @@ void Tree::initFromTileProperty(float x, float y, const TileProperty* prop) {
         maxHealth = 30.0f;
         defense = 5.0f;
         size = sf::Vector2f(64, 64);
+        hasCustomCollisionBox = false;  // 【新增】
         health = maxHealth;
         updateSprite();
         return;
@@ -112,10 +122,10 @@ void Tree::initFromTileProperty(float x, float y, const TileProperty* prop) {
     
     // 从 TileProperty 设置属性
     treeType = prop->name;
-    name = prop->name;  // 可以后续添加中文名映射
+    name = prop->name;
     maxHealth = (float)prop->hp;
     defense = (float)prop->defense;
-    size = sf::Vector2f(64, 64);  // 默认尺寸，可从外部设置
+    size = sf::Vector2f(64, 64);
     
     // 解析经验和金币奖励
     expMin = prop->expMin > 0 ? prop->expMin : 5;
@@ -177,17 +187,36 @@ void Tree::initFromTileProperty(float x, float y, const TileProperty* prop) {
     // 设置中文显示名
     if (treeType == "tree1") {
         name = "橡树";
-        // 不再默认设置 canTransform，由外部控制
     } else if (treeType == "apple_tree") {
         name = "苹果树";
     } else if (treeType == "cherry_tree") {
         name = "樱桃树";
     } else if (treeType == "cherry_blossom_tree" || treeType == "cherry_blossom_tree.png") {
         name = "樱花树";
-    } else {
-        // 未知类型，使用原始名称
     }
-    canTransform = false;  // 默认不变换，由外部设置
+    canTransform = false;
+    
+    // ========================================
+    // 【新增】从 TileProperty 读取自定义碰撞盒
+    // ========================================
+    if (prop->hasCollisionBox && prop->collisionWidth > 0 && prop->collisionHeight > 0) {
+        hasCustomCollisionBox = true;
+        customCollisionX = prop->collisionX;
+        customCollisionY = prop->collisionY;
+        customCollisionWidth = prop->collisionWidth;
+        customCollisionHeight = prop->collisionHeight;
+        // 保存原始tile尺寸用于缩放计算
+        // 对于 tree.tsx，原始尺寸是 64x64
+        originalTileWidth = 64.0f;
+        originalTileHeight = 64.0f;
+        
+        std::cout << "[Tree] Custom collision box set: "
+                  << "x=" << customCollisionX << " y=" << customCollisionY
+                  << " w=" << customCollisionWidth << " h=" << customCollisionHeight << std::endl;
+    } else {
+        hasCustomCollisionBox = false;
+        std::cout << "[Tree] Using default collision box for: " << name << std::endl;
+    }
     
     health = maxHealth;
     
@@ -355,6 +384,9 @@ void Tree::update(float dt) {
 }
 
 void Tree::grow(float dt) {
+    // 【关键修复】如果树已经死了，禁止生长，防止触发变身复活
+    if (isDead()) return;
+
     growthTimer += dt;
     
     TreeGrowthStage oldStage = growthStage;
@@ -375,13 +407,11 @@ void Tree::grow(float dt) {
             break;
             
         case TreeGrowthStage::Mature:
-            // 普通树成熟后可以变换成果树
             if (canTransform && !hasTransformed && growthTimer >= matureTime) {
                 growthTimer = 0;
-                transformToFruitTree();  // 变换成苹果树或樱桃树
-                return;  // 变换后直接返回，避免重复处理
+                transformToFruitTree(); 
+                return;
             }
-            // 如果是果树，检查是否应该结果
             else if (!fruitDropItems.empty() && growthTimer >= matureTime) {
                 growthTimer = 0;
                 growthStage = TreeGrowthStage::Fruiting;
@@ -389,11 +419,9 @@ void Tree::grow(float dt) {
             break;
             
         case TreeGrowthStage::Fruiting:
-            // 果实阶段不自动变化，等待采摘
             break;
     }
-    
-    // 阶段变化回调
+
     if (oldStage != growthStage) {
         updateSprite();
         if (onGrowthStageChanged) {
@@ -561,15 +589,16 @@ sf::FloatRect Tree::getBounds() const {
     return sf::FloatRect(position.x, position.y - size.y, size.x, size.y);
 }
 
+// 【修改】物理碰撞体积：只包含树干底部，方便玩家在树下穿行
 sf::FloatRect Tree::getCollisionBox() const {
-    // 碰撞盒只取树干部分（下半部分，更窄）
-    float collisionWidth = size.x * 0.5f;
-    float collisionHeight = size.y * 0.4f;
+    float width = size.x * 0.3f;    // 树干宽度 30%
+    float height = size.y * 0.2f;   // 树干底部高度 20%
+    
     return sf::FloatRect(
-        position.x + (size.x - collisionWidth) / 2.0f,
-        position.y - collisionHeight,
-        collisionWidth,
-        collisionHeight
+        position.x + (size.x - width) / 2.0f, // 水平居中
+        position.y - height,                  // 紧贴底部
+        width,
+        height
     );
 }
 
@@ -739,10 +768,18 @@ bool TreeManager::loadFont(const std::string& fontPath) {
 }
 
 void TreeManager::update(float dt) {
-    // 更新所有树木
+    // 【关键修复】遍历并移除死树
     for (auto it = trees.begin(); it != trees.end(); ) {
         (*it)->update(dt);
-        ++it;
+        
+        if ((*it)->isDead()) {
+            // 如果树死了，将其从列表中移除
+            // 注意：如果你的 dropParticles 还在树对象里管理，可能需要先把粒子转移出来
+            // 或者简单一点，等粒子播放完再删。但为了解决不消失bug，直接删最有效。
+            it = trees.erase(it);
+        } else {
+            ++it;
+        }
     }
 }
 
@@ -1042,21 +1079,26 @@ Tree* TreeManager::getTreeInRect(const sf::FloatRect& rect) {
     return nullptr;
 }
 
+static float distSqPointRect(const sf::Vector2f& p, const sf::FloatRect& r) {
+    float nearestX = std::max(r.left, std::min(p.x, r.left + r.width));
+    float nearestY = std::max(r.top, std::min(p.y, r.top + r.height));
+    float dx = p.x - nearestX;
+    float dy = p.y - nearestY;
+    return dx * dx + dy * dy;
+}
+
 std::vector<Tree*> TreeManager::damageTreesInRange(const sf::Vector2f& center, 
                                                     float radius, float damage) {
     std::vector<Tree*> hitTrees;
+    float radiusSq = radius * radius;
     
     for (auto& tree : trees) {
         if (tree->isDead()) continue;
         
-        sf::Vector2f treeCenter = tree->getPosition();
-        treeCenter.y -= tree->getBounds().height / 2;
+        // 【修改】使用 HitBox 而不是中心点，解决“必须砍树根”的问题
+        sf::FloatRect hitBox = tree->getHitBox();
         
-        float dx = treeCenter.x - center.x;
-        float dy = treeCenter.y - center.y;
-        float distance = std::sqrt(dx * dx + dy * dy);
-        
-        if (distance <= radius) {
+        if (distSqPointRect(center, hitBox) <= radiusSq) {
             tree->takeDamage(damage);
             hitTrees.push_back(tree.get());
         }
@@ -1094,4 +1136,16 @@ bool TreeManager::isCollidingWithAnyTree(const sf::FloatRect& rect) const {
         }
     }
     return false;
+}
+
+sf::FloatRect Tree::getHitBox() const {
+    // 【新增】攻击判定体积：覆盖大部分树木，方便玩家点击或挥动武器击中
+    // 使用 80% 的视觉大小，稍微内缩一点点以免空气受击
+    float shrink = 0.1f;
+    return sf::FloatRect(
+        position.x + size.x * shrink,
+        position.y - size.y + size.y * shrink,
+        size.x * (1.0f - shrink * 2),
+        size.y * (1.0f - shrink) // 底部不缩，延伸到根部
+    );
 }

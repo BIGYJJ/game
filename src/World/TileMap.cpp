@@ -1,5 +1,4 @@
 #include "TileMap.h"
-#include <iostream>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -291,6 +290,7 @@ bool TileMap::isColliding(const sf::FloatRect& box) const {
     }
     
     // Also check collision with objects
+    // 注意：树木、石头、植物应该已被各自的Manager接管，这里只检测剩余对象
     float scale = (float)tileSize / srcTileSize;
     for (const auto& obj : objects) {
         if (obj.gid <= 0) continue;
@@ -304,6 +304,10 @@ bool TileMap::isColliding(const sf::FloatRect& box) const {
         );
         
         if (box.intersects(objBox)) {
+            // 调试输出：显示是哪个对象导致了碰撞
+            std::cout << "[TileMap Collision] Object gid=" << obj.gid 
+                      << " name=" << obj.name << " type=" << obj.type
+                      << " at (" << obj.x << "," << obj.y << ")" << std::endl;
             return true;
         }
     }
@@ -812,6 +816,86 @@ bool TileMap::loadTsxFile(const std::string& tsxPath, TilesetInfo& ts) {
             prop.imagePath = getXmlAttrStr(imgTag, "source");
         }
         
+        size_t objGroupPos = tileXml.find("<objectgroup");
+        if (objGroupPos != std::string::npos) {
+            // 查找 <objectgroup> 内的第一个 <object> 标签
+            size_t objPos = tileXml.find("<object", objGroupPos);
+            if (objPos != std::string::npos) {
+                size_t objEnd = tileXml.find("/>", objPos);
+                if (objEnd == std::string::npos) {
+                    objEnd = tileXml.find(">", objPos);
+                }
+                
+                if (objEnd != std::string::npos) {
+                    std::string objTag = tileXml.substr(objPos, objEnd - objPos + 2);
+                    
+                    // 解析碰撞盒的 x, y, width, height 属性
+                    float collX = 0.0f, collY = 0.0f, collW = 0.0f, collH = 0.0f;
+                    
+                    // 解析 x 属性
+                    size_t xAttrPos = objTag.find("x=\"");
+                    if (xAttrPos != std::string::npos) {
+                        size_t xStart = xAttrPos + 3;
+                        size_t xEnd = objTag.find("\"", xStart);
+                        if (xEnd != std::string::npos) {
+                            try {
+                                collX = std::stof(objTag.substr(xStart, xEnd - xStart));
+                            } catch (...) { collX = 0.0f; }
+                        }
+                    }
+                    
+                    // 解析 y 属性
+                    size_t yAttrPos = objTag.find("y=\"");
+                    if (yAttrPos != std::string::npos) {
+                        size_t yStart = yAttrPos + 3;
+                        size_t yEnd = objTag.find("\"", yStart);
+                        if (yEnd != std::string::npos) {
+                            try {
+                                collY = std::stof(objTag.substr(yStart, yEnd - yStart));
+                            } catch (...) { collY = 0.0f; }
+                        }
+                    }
+                    
+                    // 解析 width 属性
+                    size_t wAttrPos = objTag.find("width=\"");
+                    if (wAttrPos != std::string::npos) {
+                        size_t wStart = wAttrPos + 7;
+                        size_t wEnd = objTag.find("\"", wStart);
+                        if (wEnd != std::string::npos) {
+                            try {
+                                collW = std::stof(objTag.substr(wStart, wEnd - wStart));
+                            } catch (...) { collW = 0.0f; }
+                        }
+                    }
+                    
+                    // 解析 height 属性
+                    size_t hAttrPos = objTag.find("height=\"");
+                    if (hAttrPos != std::string::npos) {
+                        size_t hStart = hAttrPos + 8;
+                        size_t hEnd = objTag.find("\"", hStart);
+                        if (hEnd != std::string::npos) {
+                            try {
+                                collH = std::stof(objTag.substr(hStart, hEnd - hStart));
+                            } catch (...) { collH = 0.0f; }
+                        }
+                    }
+                    
+                    // 如果宽高都有效，设置碰撞盒
+                    if (collW > 0.0f && collH > 0.0f) {
+                        prop.hasCollisionBox = true;
+                        prop.collisionX = collX;
+                        prop.collisionY = collY;
+                        prop.collisionWidth = collW;
+                        prop.collisionHeight = collH;
+                        
+                        std::cout << "     [Tile " << prop.localId << "] Collision box: "
+                                  << "x=" << collX << " y=" << collY 
+                                  << " w=" << collW << " h=" << collH << std::endl;
+                    }
+                }
+            }
+        }
+
         // 输出调试信息
         if (!prop.name.empty()) {
             std::cout << "     [Tile " << prop.localId << "] name=" << prop.name 

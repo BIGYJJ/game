@@ -5,29 +5,27 @@
 #include <vector>
 #include <map>
 #include <functional>
+#include <cmath>
+#include <string>
 
 // ============================================================================
-// 合成系统 (Crafting System)
-// 
-// 工作台/合成界面
+// 合成与锻造系统 (Crafting & Forging System)
 // ============================================================================
-// 
-// 【合成配方】
-//   - 每个配方由多个输入材料和一个输出物品组成
-//   - 输入材料可以是任意类型的物品
-//   - 输出物品可以是装备、消耗品或材料
-//
-// 【示例配方】
-//   - 1 石头 + 2 树枝 = 1 木斧（无视防御）
-//   - 3 木材 = 1 木盾
-//   - 2 木材 + 1 石头 = 1 木剑
-//
-// ============================================================================
+
+// 武器锻造概率结构
+struct ForgeProbability {
+    float white;    // 普通
+    float green;    // 优秀
+    float blue;     // 稀有
+    float purple;   // 史诗
+    float orange;   // 传说
+    float red;      // 神话
+};
 
 // 配方材料
 struct RecipeIngredient {
-    std::string itemId;     // 物品ID
-    int count;              // 所需数量
+    std::string itemId;
+    int count;
     
     RecipeIngredient(const std::string& id = "", int c = 1)
         : itemId(id), count(c) {}
@@ -35,50 +33,50 @@ struct RecipeIngredient {
 
 // 合成配方
 struct CraftingRecipe {
-    std::string id;                             // 配方ID
-    std::string name;                           // 配方名称
-    std::string description;                    // 配方描述
-    std::vector<RecipeIngredient> ingredients;  // 所需材料
-    std::string resultItemId;                   // 产出物品ID
-    int resultCount;                            // 产出数量
-    bool isEquipment;                           // 是否为装备配方
-    bool allowBatchCraft;                       // 是否允许批量合成
-    int maxBatchCount;                          // 最大批量数量
-    bool isWeaponForge;                         // 是否为武器锻造配方
+    std::string id;
+    std::string name;
+    std::string description;
+    std::vector<RecipeIngredient> ingredients;
+    std::string resultItemId;
+    int resultCount;
+    bool isEquipment;
+    
+    // 批量合成设置
+    bool allowBatchCraft;
+    int maxBatchCount;
+    
+    // 武器锻造设置
+    bool isWeaponForge;
+    int maxWeaponSouls; // 最大可添加武器魂数量 (Excel: 30)
     
     CraftingRecipe()
         : resultCount(1)
         , isEquipment(false)
         , allowBatchCraft(false)
         , maxBatchCount(1)
-        , isWeaponForge(false) {}
+        , isWeaponForge(false)
+        , maxWeaponSouls(0) {}
 };
-
-// ============================================================================
-// 合成管理器（单例）
-// ============================================================================
 
 class CraftingManager {
 public:
     static CraftingManager& getInstance();
-    
-    // 初始化配方
     void initialize();
-    
-    // 获取配方
-    const CraftingRecipe* getRecipe(const std::string& recipeId) const;
-    
-    // 获取所有配方
     const std::vector<CraftingRecipe>& getAllRecipes() const { return recipes; }
     
     // 注册配方
     void registerRecipe(const CraftingRecipe& recipe);
+
+    // 检查材料是否足够 (multiplier为批量倍数)
+    bool canCraft(const CraftingRecipe& recipe, CategoryInventory* inventory, int multiplier = 1, int extraSoulCount = 0) const;
     
-    // 检查是否可以合成（材料是否足够）
-    bool canCraft(const CraftingRecipe& recipe, CategoryInventory* inventory) const;
-    
-    // 执行合成
-    bool craft(const CraftingRecipe& recipe, CategoryInventory* inventory);
+    // 执行合成/锻造
+    // multiplier: 批量数量
+    // soulCount: 投入的武器魂数量
+    bool craft(const CraftingRecipe& recipe, CategoryInventory* inventory, int multiplier = 1, int soulCount = 0);
+
+    // 计算锻造概率 (根据Excel公式模拟)
+    ForgeProbability calculateForgeProb(int soulCount);
 
 private:
     CraftingManager() = default;
@@ -87,95 +85,71 @@ private:
 };
 
 // ============================================================================
-// 工作箱面板 UI
+// 改进后的工作台 UI
 // ============================================================================
 
 class CraftingPanel {
 public:
+    // 定义回调类型 (保持与 GameState.cpp 兼容)
     using CraftCallback = std::function<void(const CraftingRecipe&)>;
     using CraftSuccessCallback = std::function<void(const std::string& itemId, int count)>;
     
     CraftingPanel();
-    
-    // 初始化
     bool init(const std::string& iconPath);
-    bool loadFont(const std::string& fontPath);
-    
-    // 设置关联的背包
     void setInventory(CategoryInventory* inv) { inventory = inv; }
-    
-    // 设置图标位置
     void setIconPosition(float x, float y);
-    
-    // 更新
     void update(float dt);
-    
-    // 处理事件
     void handleEvent(const sf::Event& event, sf::RenderWindow& window);
-    
-    // 渲染
     void render(sf::RenderWindow& window);
     
-    // 打开/关闭
     void open();
     void close();
     void toggle();
     bool isOpen() const { return panelOpen; }
-    
-    // 回调
+
+    // 回调设置函数 (恢复以修复 GameState.cpp 编译错误)
     void setOnCraft(CraftCallback cb) { onCraft = cb; }
     void setOnCraftSuccess(CraftSuccessCallback cb) { onCraftSuccess = cb; }
 
 private:
     void renderRecipeList(sf::RenderWindow& window);
     void renderRecipeDetail(sf::RenderWindow& window);
-    void renderIngredient(sf::RenderWindow& window, const RecipeIngredient& ing, 
-                         const sf::Vector2f& pos, bool hasEnough);
+    // 渲染滑动条组件
+    void renderSlider(sf::RenderWindow& window, const sf::Vector2f& pos, float width, int min, int max, int& current, const std::string& label);
+    // 渲染概率表
+    void renderProbabilities(sf::RenderWindow& window, const sf::Vector2f& pos, const ForgeProbability& probs);
+
     int getRecipeAtPosition(const sf::Vector2f& pos) const;
 
 private:
     CategoryInventory* inventory;
-    
-    // UI状态
     bool panelOpen;
+    
+    // 选中状态
     int selectedRecipe;
     int hoveredRecipe;
     int scrollOffset;
     
-    // 图标
+    // 动态控制参数
+    int currentBatchAmount; // 当前选择的批量合成数量
+    int currentSoulAmount;  // 当前选择投入的武器魂数量
+    
+    // UI资源
     sf::Texture iconTexture;
     sf::Sprite iconSprite;
     sf::Vector2f iconPosition;
-    bool iconLoaded;
-    
-    // 图标悬浮动画
-    bool iconHovered;
-    float iconHoverScale;
-    float iconTargetScale;
-    static constexpr float ICON_BASE_SCALE = 0.8f;
-    
-    // 面板
-    sf::Vector2f panelPosition;
-    sf::Vector2f panelSize;
-    
-    // 字体
     sf::Font font;
     bool fontLoaded;
     
-    // 回调
+    // 布局常量
+    sf::Vector2f panelPosition;
+    sf::Vector2f panelSize;
+    
+    // 拖拽滑动条状态
+    bool isDraggingBatchSlider;
+    bool isDraggingSoulSlider;
+
+    // 回调对象
     CraftCallback onCraft;
     CraftSuccessCallback onCraftSuccess;
-    
-    // 常量
-    static constexpr float RECIPE_HEIGHT = 60.0f;
-    static constexpr float LIST_WIDTH = 200.0f;
-    
-    // 颜色
-    static const sf::Color BG_COLOR;
-    static const sf::Color SLOT_COLOR;
-    static const sf::Color SLOT_HOVER_COLOR;
-    static const sf::Color SLOT_SELECTED_COLOR;
-    static const sf::Color CRAFTABLE_COLOR;
-    static const sf::Color NOT_CRAFTABLE_COLOR;
-    static const sf::Color BORDER_COLOR;
 };

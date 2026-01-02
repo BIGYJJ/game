@@ -278,14 +278,21 @@ sf::FloatRect StoneBuild::getBounds() const {
 }
 
 sf::FloatRect StoneBuild::getCollisionBox() const {
-    // 碰撞盒通常比视觉范围小一些
-    sf::FloatRect bounds = getBounds();
-    float shrink = 0.15f;
+    // 【修改】石头碰撞体积
+    // 设置为石头底部的一半或三分之一，阻挡玩家穿过
+    
+    // 如果石头是 32x32，我们让碰撞盒为底部 16 像素高
+    float heightRatio = 0.4f; 
+    float widthRatio = 0.8f;  // 左右稍微留点空隙
+    
+    float colW = size.x * widthRatio;
+    float colH = size.y * heightRatio;
+    
     return sf::FloatRect(
-        bounds.left + bounds.width * shrink / 2,
-        bounds.top + bounds.height * shrink,
-        bounds.width * (1 - shrink),
-        bounds.height * (1 - shrink)
+        position.x + (size.x - colW) / 2.0f, // 水平居中
+        position.y - colH,                   // 紧贴底部
+        colW,
+        colH
     );
 }
 
@@ -612,21 +619,28 @@ StoneBuild* StoneBuildManager::getStoneInRect(const sf::FloatRect& rect) {
     return nullptr;
 }
 
+// 辅助函数（如果和Tree不在同一个文件，需要复制一份或者放在工具类中）
+static float distSqPointRect_Stone(const sf::Vector2f& p, const sf::FloatRect& r) {
+    float nearestX = std::max(r.left, std::min(p.x, r.left + r.width));
+    float nearestY = std::max(r.top, std::min(p.y, r.top + r.height));
+    float dx = p.x - nearestX;
+    float dy = p.y - nearestY;
+    return dx * dx + dy * dy;
+}
+
 std::vector<StoneBuild*> StoneBuildManager::damageStonesInRange(const sf::Vector2f& center, 
                                                                  float radius, float damage) {
     std::vector<StoneBuild*> hitStones;
+    float radiusSq = radius * radius;
     
     for (auto& stone : stones) {
         if (!stone || stone->isDead()) continue;
         
-        sf::Vector2f stoneCenter = stone->getPosition();
-        stoneCenter.y -= stone->getSize().y / 2;
+        // 使用 Visual Bounds (可视边界) 进行攻击判定
+        // 石头比较小，直接用整个外观作为受击判定即可
+        sf::FloatRect hitBox = stone->getBounds();
         
-        float dx = stoneCenter.x - center.x;
-        float dy = stoneCenter.y - center.y;
-        float distSq = dx * dx + dy * dy;
-        
-        if (distSq <= radius * radius) {
+        if (distSqPointRect_Stone(center, hitBox) <= radiusSq) {
             stone->takeDamage(damage);
             hitStones.push_back(stone.get());
         }

@@ -4,6 +4,7 @@
 #include <string>
 #include <memory>
 #include <algorithm>
+#include <iostream>
 
 // ============================================================================
 // TileMap - Supports loading Tiled exported .tmj/.json files
@@ -167,6 +168,22 @@ public:
     // 根据gid获取tile属性
     const TileProperty* getTilePropertyByGid(int gid) const;
     
+    // 【调试】打印剩余的对象列表
+    void debugPrintRemainingObjects() const {
+        std::cout << "[TileMap DEBUG] Remaining objects: " << objects.size() << std::endl;
+        for (const auto& obj : objects) {
+            std::cout << "  - gid=" << obj.gid 
+                      << " name=\"" << obj.name << "\""
+                      << " type=\"" << obj.type << "\""
+                      << " at (" << obj.x << "," << obj.y << ")"
+                      << " size=" << obj.width << "x" << obj.height;
+            if (obj.tileProperty) {
+                std::cout << " [prop: " << obj.tileProperty->name << "/" << obj.tileProperty->type << "]";
+            }
+            std::cout << std::endl;
+        }
+    }
+    
     // 清除对象（当TreeManager接管树木渲染后调用，避免重复渲染）
     void clearObjects() { objects.clear(); }
     
@@ -174,12 +191,28 @@ public:
     void removeTreeObjects() {
         objects.erase(
             std::remove_if(objects.begin(), objects.end(), 
-                [](const MapObject& obj) {
-                    if (!obj.tileProperty) return false;
-                    return obj.tileProperty->type == "tree";
+                [this](const MapObject& obj) {
+                    // 方法1：通过 tileProperty 识别
+                    if (obj.tileProperty) {
+                        if (obj.tileProperty->type == "tree") return true;
+                        if (obj.tileProperty->name.find("tree") != std::string::npos) return true;
+                    }
+                    // 方法2：通过对象自身的 type/name 识别
+                    if (obj.type == "tree") return true;
+                    if (obj.name.find("tree") != std::string::npos) return true;
+                    // 方法3：通过 gid 范围识别 (tree.tsx 的 firstGid)
+                    // 查找 tree tileset
+                    for (const auto& ts : tilesets) {
+                        if (ts.name == "tree" && obj.gid >= ts.firstGid && 
+                            obj.gid < ts.firstGid + ts.tileCount) {
+                            return true;
+                        }
+                    }
+                    return false;
                 }),
             objects.end()
         );
+        std::cout << "[TileMap] Removed tree objects, remaining: " << objects.size() << std::endl;
     }
     
     // 移除石头建筑类型的对象（当StoneBuildManager接管渲染后调用）
@@ -246,7 +279,7 @@ private:
     // ========================================
     void drawTile(sf::RenderWindow& window, const Tile& tile, int x, int y);
     void renderObjects(sf::RenderWindow& window, const sf::View& view);
-
+    void removeObjectsByType(const std::string& type);
 private:
     int width, height;
     int tileSize;

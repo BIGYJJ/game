@@ -3,7 +3,7 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "part_3.tsx",
+    "activeFile": "part1.tmj",
     "expandedProjectPaths": [
     ],
     "file.lastUsedOpenFilter": "全部文件 (*)",
@@ -28,11 +28,11 @@
             }
         },
         "part1.tmj": {
-            "scale": 1.5,
+            "scale": 0.75,
             "selectedLayer": 1,
             "viewCenter": {
-                "x": 1476.3333333333333,
-                "y": 825.3333333333333
+                "x": 832.6666666666667,
+                "y": 824
             }
         },
         "part1.tmx": {
@@ -83,9 +83,9 @@
     "project": "1.tiled-project",
     "property.type": "bool",
     "recentFiles": [
-        "part1.tmj",
-        "tree.tsx",
         "part_3.tsx",
+        "tree.tsx",
+        "part1.tmj",
         "part_2.tsx",
         "part1.tmx",
         "1.tsx",
